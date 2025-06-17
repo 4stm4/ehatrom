@@ -83,14 +83,14 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.get_version.outputs.VERSION }}
-          name: "Ehatrom ${{ steps.get_version.outputs.VERSION }}: Independent Repository Release"
+          name: "v0.3.2: Improved large EEPROM support with page-based reading"
           body: |
-            We're excited to announce Ehatrom ${{ steps.get_version.outputs.VERSION }}, a maintenance release that establishes the library as an independent repository.
+            This release enhances compatibility with various EEPROM chips and adds support for larger memory sizes.
 
-            ### What's Changed
-            - **Repository Migration**: Extracted the Ehatrom library into a standalone repository for better maintainability
-            - **Documentation Updates**: Updated all repository links in documentation and metadata
-            - **README Improvements**: Fixed badges and references to reflect the new repository structure
+            ### Key improvements:
+
+            - **Large EEPROM support**: Buffer size now configurable via `EHATROM_BUFFER_SIZE` environment variable (default 32KB, can be set up to several MB)
+            - **Enhanced I2C reliability**: Implemented page-based reading (32 bytes per operation) for better compatibility with EEPROM chips that don't support large block reads
 
             ### About Ehatrom
             Ehatrom is a Rust library for reading, writing, and generating EEPROM content for Raspberry Pi HAT (Hardware Attached on Top) via I2C. The library supports:
@@ -100,6 +100,16 @@ jobs:
             - I2C communication with proper page write and 2-byte offset support
             - CRC32 integrity checking
             - Custom atoms for application-specific data
+
+            ### Usage:
+
+            ```bash
+            # Read a large EEPROM with 1MB buffer
+            EHATROM_BUFFER_SIZE=1048576 sudo ehatrom read large_eeprom.bin
+
+            # Auto-detect HAT EEPROM with improved reading capability
+            sudo ehatrom detect
+            ```
 
             ### Getting Started
             ```bash
@@ -118,3 +128,5 @@ jobs:
           prerelease: false
           files: |
             ${{ steps.prepare_binaries.outputs.ARCHIVE_PATH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
