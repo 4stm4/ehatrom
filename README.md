@@ -13,6 +13,8 @@
 - Convenient content output, including string fields
 - CLI example for reading/writing/dumping EEPROM
 - Support for custom atoms and CRC32 integrity check
+- Large EEPROM support with configurable buffer size via `EHATROM_BUFFER_SIZE` environment variable
+- Page-based reading implementation (32 bytes per read) for better compatibility with real EEPROM chips
 
 ## Structures
 - `EepromHeader` — EEPROM header
@@ -114,6 +116,8 @@ Each byte of the `pins` array defines the function of the corresponding GPIO:
 
 - The core library (EEPROM structures, serialization, CRC, etc.) is **cross-platform** and works on any OS (Linux, macOS, Windows, etc.).
 - **I2C EEPROM read/write functions** (`write_to_eeprom_i2c`, `read_from_eeprom_i2c`) are available **only on Linux** (using the [i2cdev](https://crates.io/crates/i2cdev) crate).
+- The I2C reading implementation uses **page-based reading** (32 bytes per read operation) for better compatibility with real EEPROM chips that don't support reading large blocks at once.
+- Buffer size for I2C operations is configurable via the `EHATROM_BUFFER_SIZE` environment variable (default is 32KB, but can be set to any value up to several megabytes).
 - On other platforms, you can use all parsing/serialization features, but direct I2C access is not available.
 
 ## Dependencies
@@ -147,6 +151,9 @@ sudo ehatrom read dump.bin
 # Read EEPROM from specific I2C device
 sudo ehatrom read /dev/i2c-1 dump.bin
 
+# Read large EEPROM with custom buffer size (default is 32KB)
+EHATROM_BUFFER_SIZE=1048576 sudo ehatrom read large_eeprom.bin  # 1MB buffer
+
 # Write EEPROM from file (uses default /dev/i2c-0 and address 0x50)
 sudo ehatrom write dump.bin
 
@@ -169,6 +176,9 @@ The `detect --all` command automatically finds all available I2C devices in `/de
 ```sh
 # Scan all I2C devices - shows which devices are available and which contain HAT EEPROM
 sudo ehatrom detect --all
+
+# Use a larger buffer for detecting EEPROMs larger than 32KB
+EHATROM_BUFFER_SIZE=1048576 sudo ehatrom detect  # 1MB buffer
 ```
 
 - All errors and usage info are printed to stderr.
