@@ -988,11 +988,19 @@ pub fn read_from_eeprom_i2c(
     offset: u16,
 ) -> Result<(), EhatromError> {
     let mut dev = LinuxI2CDevice::new(dev_path, addr).map_err(|_| EhatromError::I2cError)?;
-    // Send 2-byte offset first (high byte, low byte)
-    let offset_bytes = [(offset >> 8) as u8, (offset & 0xFF) as u8];
-    dev.write(&offset_bytes)
-        .map_err(|_| EhatromError::I2cError)?;
-    dev.read(buf).map_err(|_| EhatromError::I2cError)?;
+    const PAGE_SIZE: usize = 32; // Safe default size for most EEPROM chips
+    let mut total_read = 0;
+    let mut current_offset = offset;
+    while total_read < buf.len() {
+        let chunk_size = PAGE_SIZE.min(buf.len() - total_read);
+        let offset_bytes = [(current_offset >> 8) as u8, (current_offset & 0xFF) as u8];
+        dev.write(&offset_bytes)
+            .map_err(|_| EhatromError::I2cError)?;
+        let chunk_buf = &mut buf[total_read..total_read + chunk_size];
+        dev.read(chunk_buf).map_err(|_| EhatromError::I2cError)?;
+        total_read += chunk_size;
+        current_offset += chunk_size as u16;
+    }
     Ok(())
 }
 
