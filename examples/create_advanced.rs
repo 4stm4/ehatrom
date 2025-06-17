@@ -100,12 +100,14 @@ fn main() {
     // Serialize with CRC
     #[cfg(feature = "alloc")]
     let serialized = eeprom.serialize_with_crc();
-    
+
     #[cfg(not(feature = "alloc"))]
     // Создаем буфер и вектор для копирования данных
     let serialized = {
         let mut buffer = [0u8; 4096]; // Больший буфер для DT blob
-        let size = eeprom.serialize_with_crc_to_slice(&mut buffer).expect("Failed to serialize EEPROM");
+        let size = eeprom
+            .serialize_with_crc_to_slice(&mut buffer)
+            .expect("Failed to serialize EEPROM");
         // Копируем данные в новый вектор
         buffer[..size].to_vec()
     };
