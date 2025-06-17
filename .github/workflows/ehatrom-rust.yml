@@ -1,63 +1,92 @@
-name: Ehatrom CI
+name: Ehatrom Rust CI
 
 on:
   push:
     branches: [ main ]
+    tags: [ '*' ]
+    paths:
+      - 'src/**'
   pull_request:
     branches: [ main ]
-
-env:
-  CARGO_TERM_COLOR: always
+    paths:
+      - 'src/**'
 
 jobs:
-  test:
-    name: Test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        rust: [stable]
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust ${{ matrix.rust }}
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: ${{ matrix.rust }}
-      
-      - name: Run tests
-        run: cargo test --verbose
-          
-      - name: Run tests (no-std)
-        run: cargo test --verbose --no-default-features
-          
-      - name: Build examples
-        run: cargo build --verbose --examples
-
   fmt:
-    name: Rustfmt
+    name: cargo fmt
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./
     steps:
       - uses: actions/checkout@v4
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust nightly
+        uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
-          components: rustfmt
-      
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+          toolchain: nightly
+          override: true
+      - name: Install rustfmt for nightly
+        run: rustup component add --toolchain nightly rustfmt
+      - name: cargo fmt
+        run: cargo +nightly fmt -- --check
 
   clippy:
-    name: Clippy
+    name: cargo clippy
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./
     steps:
       - uses: actions/checkout@v4
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust nightly
+        uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
-          components: clippy
-      
-      - name: Clippy check
-        run: cargo clippy -- -D warnings
+          toolchain: nightly
+          override: true
+      - name: Install clippy for nightly
+        run: rustup component add --toolchain nightly clippy
+      - name: cargo clippy
+        run: cargo +nightly clippy --workspace --all-targets -- -D warnings
+
+  build:
+    needs: [fmt, clippy]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Set nightly as default
+        run: rustup default nightly
+      - name: Build
+        run: cargo build --workspace --all-targets --verbose
+      - name: Run tests
+        run: cargo test --workspace --all-targets --verbose
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Set nightly as default
+        run: rustup default nightly
+      - name: Build release
+        run: cargo build --release --workspace
+      - name: Upload release binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: /target/release/
