@@ -1,0 +1,28 @@
+[package]
+name = "ehatrom"
+version = "0.3.1"
+edition = "2024"
+description = "EEPROM HAT library for Raspberry Pi HATs (serialization, I2C, CRC32, custom atoms)"
+repository = "https://github.com/4stm4/ehatrom"
+homepage = "https://github.com/4stm4/ehatrom"
+documentation = "https://docs.rs/ehatrom"
+keywords = ["raspberry-pi", "eeprom", "hat", "i2c", "crc32"]
+categories = ["embedded", "hardware-support"]
+readme = "README.md"
+license = "MIT"
+authors = ["Aleksei Zakharchenko <ehatrom@4stm4.ru>"]
+exclude = [
+  "tests/*",
+  "Dockerfile*",
+  "update_and_run.sh",
+  "update_and_run.md"
+]
+
+[dependencies]
+i2cdev = { version = "0.6", optional = true }
+
+[features]
+default = ["alloc"]
+alloc = []
+std = ["alloc"]
+linux = ["i2cdev", "std"]

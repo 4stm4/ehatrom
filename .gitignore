@@ -1,0 +1,37 @@
+# Бинарные артефакты Cargo
+/target/
+**/*.rs.bk
+
+# Файлы и каталоги IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# Файлы macOS
+.DS_Store
+
+# Логи и временные файлы
+*.log
+
+# Файлы дампов
+*.bin
+*.dmp
+
+# Кэш
+CACHEDIR.TAG
+
+# Файлы покрытия и профили
+**/*.profraw
+**/*.gcda
+**/*.gcno
+**/*.gcov
+*.old
+*.orig
+*.rej
+*.lock
+lcov.info
+coverage/
+artifacts/
