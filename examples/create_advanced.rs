@@ -1,3 +1,12 @@
+//  _  _       _             _  _
+// | || |  ___| |_ _ __ ___ | || |
+// | || |_/ __| __| '_ ` _ \| || |_
+// |__   _\__ | |_| | | | | |__   _|
+//   |_| |___/\__|_|_|_| |_|  |_|
+//! # ehatrom — EEPROM HAT library for Raspberry Pi HATs
+//! - [Documentation (docs.rs)](https://docs.rs/ehatrom)
+//! - [GitHub](https://github.com/4stm4/ehatrom)
+//!
 // Advanced EEPROM creation example with Device Tree blob
 use ehatrom::*;
 

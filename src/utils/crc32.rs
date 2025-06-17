@@ -5,7 +5,7 @@
 //   |_| |___/\__|_|_|_| |_|  |_|
 //! # ehatrom — EEPROM HAT library for Raspberry Pi HATs
 //! - [Documentation (docs.rs)](https://docs.rs/ehatrom)
-//! - [GitHub](https://github.com/4stm4/ocultum/tree/main/ehatrom)
+//! - [GitHub](https://github.com/4stm4/ehatrom)
 //!
 //! ## Custom CRC32 implementation for bare-metal compatibility
 /// CRC32 polynomial (IEEE 802.3 standard)

@@ -9,7 +9,7 @@
 // \___/ \___|\__,_|_|\__|\__,_|_| |_| |_|
 //! # ehatrom — EEPROM HAT library for Raspberry Pi HATs
 //! - [Documentation (docs.rs)](https://docs.rs/ehatrom)
-//! - [GitHub](https://github.com/4stm4/ocultum/tree/main/ehatrom)
+//! - [GitHub](https://github.com/4stm4/ehatrom)
 
 // Import necessary types based on features
 #[cfg(feature = "alloc")]

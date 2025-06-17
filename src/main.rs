@@ -3,7 +3,10 @@
 // | || |_/ __| __| '_ ` _ \| || |_
 // |__   _\__ | |_| | | | | |__   _|
 //   |_| |___/\__|_|_|_| |_|  |_|
-
+//! # ehatrom — EEPROM HAT library for Raspberry Pi HATs
+//! - [Documentation (docs.rs)](https://docs.rs/ehatrom)
+//! - [GitHub](https://github.com/4stm4/ehatrom)
+//!
 fn main() {
     // Import I2C functions only on Linux
     #[cfg(not(all(target_os = "linux", feature = "linux")))]
