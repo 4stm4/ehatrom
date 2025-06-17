@@ -67,7 +67,15 @@ fn main() {
     eeprom.update_header();
 
     // Serialize with CRC
+    #[cfg(feature = "alloc")]
     let serialized = eeprom.serialize_with_crc();
+    
+    #[cfg(not(feature = "alloc"))]
+    let serialized = {
+        let mut buffer = [0u8; 1024]; // Буфер достаточного размера
+        let size = eeprom.serialize_with_crc_to_slice(&mut buffer).expect("Failed to serialize EEPROM");
+        &buffer[..size]
+    };
     let filename = "tests/data/custom_atoms.bin";
 
     // Create output directory if it doesn't exist

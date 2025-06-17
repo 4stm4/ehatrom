@@ -19,10 +19,11 @@ fn main() {
     // Create minimal GPIO map
     let gpio_atom = GpioMapAtom {
         flags: 0x0000,
-        pins: [0u8; 28], // All pins as inputs
+        pins: [0u8; 28], // All pins unused
     };
 
     // Create EEPROM structure
+    #[cfg(feature = "alloc")]
     let mut eeprom = Eeprom {
         header: EepromHeader::new(),
         vendor_info: vendor_atom,
@@ -32,32 +33,43 @@ fn main() {
         custom_atoms: Vec::new(),
     };
 
+    #[cfg(not(feature = "alloc"))]
+    let mut eeprom = Eeprom {
+        header: EepromHeader::new(),
+        vendor_info: vendor_atom,
+        gpio_map_bank0: gpio_atom,
+        dt_blob: None,
+        gpio_map_bank1: None,
+        custom_atoms: &[],
+    };
+
     // Update header with correct counts and length
     eeprom.update_header();
 
     // Serialize with CRC
+    #[cfg(feature = "alloc")]
     let serialized = eeprom.serialize_with_crc();
+    
+    #[cfg(not(feature = "alloc"))]
+    let serialized = {
+        let mut buffer = [0u8; 1024]; // Буфер достаточного размера
+        let size = eeprom.serialize_with_crc_to_slice(&mut buffer).expect("Failed to serialize EEPROM");
+        &buffer[..size]
+    };
 
     // Create output directory if it doesn't exist
     if std::fs::metadata("tests/data").is_err() {
         std::fs::create_dir_all("tests/data").expect("Failed to create tests/data directory");
     }
 
-    std::fs::write("tests/data/simple.bin", &serialized).expect("Failed to write test file");
+    std::fs::write("tests/data/simple.bin", &serialized).expect("Failed to write simple file");
 
-    println!(
-        "✅ Created tests/data/simple.bin ({} bytes)",
-        serialized.len()
-    );
-    println!("📊 Minimal EEPROM structure:");
-    println!("   • Header + VendorInfo + GPIO Map + CRC");
-    println!("   • No Device Tree blob");
-    println!("   • No custom atoms");
+    println!("Created tests/data/simple.bin ({} bytes)", serialized.len());
 
     // Verify the created file
     if Eeprom::verify_crc(&serialized) {
-        println!("✅ CRC32 verification passed");
+        println!("✅ CRC verification passed");
     } else {
-        println!("❌ CRC32 verification failed");
+        println!("❌ CRC verification failed");
     }
 }
