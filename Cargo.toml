@@ -1,6 +1,6 @@
 [package]
 name = "ehatrom"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2024"
 description = "EEPROM HAT library for Raspberry Pi HATs (serialization, I2C, CRC32, custom atoms)"
 repository = "https://github.com/4stm4/ehatrom"
