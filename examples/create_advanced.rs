@@ -68,6 +68,7 @@ fn main() {
     .to_vec();
 
     // Create EEPROM structure with all components
+    #[cfg(feature = "alloc")]
     let mut eeprom = Eeprom {
         header: EepromHeader::new(),
         vendor_info: vendor_atom,
@@ -75,6 +76,22 @@ fn main() {
         dt_blob: Some(dt_blob_data), // dt_blob is Option<Vec<u8>>
         gpio_map_bank1: None,        // Not used in this example
         custom_atoms: Vec::new(),
+    };
+
+    #[cfg(not(feature = "alloc"))]
+    // Для no_std режима создаем статические данные
+    let mut eeprom = {
+        // Для no_std нам нужны статические данные, это просто заглушка
+        static DT_BLOB_DATA: [u8; 1] = [0];
+        static CUSTOM_ATOMS: [(u8, &[u8]); 0] = [];
+        Eeprom {
+            header: EepromHeader::new(),
+            vendor_info: vendor_atom,
+            gpio_map_bank0: gpio_atom,
+            dt_blob: Some(&DT_BLOB_DATA), // dt_blob is Option<&[u8]> в no_std
+            gpio_map_bank1: None,
+            custom_atoms: &CUSTOM_ATOMS,
+        }
     };
 
     // Update header with correct counts and length
@@ -85,10 +102,12 @@ fn main() {
     let serialized = eeprom.serialize_with_crc();
     
     #[cfg(not(feature = "alloc"))]
+    // Создаем буфер и вектор для копирования данных
     let serialized = {
         let mut buffer = [0u8; 4096]; // Больший буфер для DT blob
         let size = eeprom.serialize_with_crc_to_slice(&mut buffer).expect("Failed to serialize EEPROM");
-        &buffer[..size]
+        // Копируем данные в новый вектор
+        buffer[..size].to_vec()
     };
     let filename = "tests/data/advanced.bin";
 

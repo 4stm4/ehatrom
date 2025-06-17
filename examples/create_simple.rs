@@ -51,10 +51,12 @@ fn main() {
     let serialized = eeprom.serialize_with_crc();
     
     #[cfg(not(feature = "alloc"))]
+    // Создаем буфер и вектор для копирования данных
     let serialized = {
         let mut buffer = [0u8; 1024]; // Буфер достаточного размера
         let size = eeprom.serialize_with_crc_to_slice(&mut buffer).expect("Failed to serialize EEPROM");
-        &buffer[..size]
+        // Копируем данные в новый вектор
+        buffer[..size].to_vec()
     };
 
     // Create output directory if it doesn't exist
