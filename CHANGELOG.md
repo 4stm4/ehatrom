@@ -3,9 +3,9 @@
 All notable changes to this project will be documented in this file.
 
 ## [0.3.1] — 2025-06-17
-- **IMPROVEMENT**: Выделение библиотеки ehatrom в отдельный репозиторий
-- **FIXED**: Обновлены ссылки на репозиторий в документации и метаданных
-- **IMPROVEMENT**: Исправлены бейджи в README.md для нового репозитория
+- **IMPROVEMENT**: Extracted ehatrom library into a separate repository
+- **FIXED**: Updated repository links in documentation and metadata
+- **IMPROVEMENT**: Fixed badges in README.md for the new repository
 
 ## [0.3.0] — 2025-06-17
 - **BREAKING**: **Bare-Metal Support** - Library now supports `#![no_std]` environments
