@@ -1,0 +1,120 @@
+name: Create GitHub Release
+
+# This workflow automates the GitHub release process when a new tag is pushed.
+# It performs the following steps:
+# 1. Builds release binaries
+# 2. Packages them into a tar.gz archive
+# 3. Extracts release notes from CHANGELOG.md if available
+# 4. Creates a GitHub release with the binaries attached
+#
+# Requirements:
+# - Tag must start with 'v' (e.g., v0.3.1)
+# - CHANGELOG.md should have entries in format: ## [0.3.1] - Date
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+      
+      - name: Build release binaries
+        run: cargo build --release --workspace
+
+      # Create a list of binaries to include in the release
+      - name: Prepare binaries
+        id: prepare_binaries
+        run: |
+          mkdir -p release_binaries
+          cp target/release/ehatrom release_binaries/
+          # Copy examples if they exist
+          if [ -d "target/release/examples" ] && [ "$(ls -A target/release/examples)" ]; then
+            mkdir -p release_binaries/examples
+            cp target/release/examples/* release_binaries/examples/
+          fi
+          # Create a tar.gz archive
+          tar -czvf ehatrom-${{ steps.get_version.outputs.VERSION }}.tar.gz release_binaries
+          echo "ARCHIVE_PATH=ehatrom-${{ steps.get_version.outputs.VERSION }}.tar.gz" >> $GITHUB_OUTPUT
+
+      # Generate release notes from CHANGELOG.md
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          VERSION_WITHOUT_V="${VERSION#v}"
+          
+          # Default release notes if extraction fails
+          DEFAULT_NOTES="Release $VERSION"
+          
+          # Try to extract notes from CHANGELOG.md
+          if grep -q "\[$VERSION_WITHOUT_V\]" CHANGELOG.md; then
+            echo "Using release notes from CHANGELOG.md"
+            # Temporary file for notes
+            NOTES_FILE=$(mktemp)
+            # Extract section for current version
+            sed -n "/## \[$VERSION_WITHOUT_V\]/,/## \[/p" CHANGELOG.md | sed '1p;/## \[/d' > $NOTES_FILE
+            echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
+            cat $NOTES_FILE >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "RELEASE_NOTES=$DEFAULT_NOTES" >> $GITHUB_OUTPUT
+          fi
+
+      # Create GitHub Release
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: "Ehatrom ${{ steps.get_version.outputs.VERSION }}: Independent Repository Release"
+          body: |
+            We're excited to announce Ehatrom ${{ steps.get_version.outputs.VERSION }}, a maintenance release that establishes the library as an independent repository.
+
+            ### What's Changed
+            - **Repository Migration**: Extracted the Ehatrom library into a standalone repository for better maintainability
+            - **Documentation Updates**: Updated all repository links in documentation and metadata
+            - **README Improvements**: Fixed badges and references to reflect the new repository structure
+
+            ### About Ehatrom
+            Ehatrom is a Rust library for reading, writing, and generating EEPROM content for Raspberry Pi HAT (Hardware Attached on Top) via I2C. The library supports:
+
+            - Complete serialization/deserialization of HAT EEPROM structure
+            - No-std environments with conditional compilation via feature flags
+            - I2C communication with proper page write and 2-byte offset support
+            - CRC32 integrity checking
+            - Custom atoms for application-specific data
+
+            ### Getting Started
+            ```bash
+            # Add to your project
+            cargo add ehatrom
+
+            # Or use the CLI tool
+            cargo install ehatrom
+            ```
+
+            For more information, check out our [documentation](https://docs.rs/ehatrom) and [examples](https://github.com/4stm4/ehatrom/tree/main/examples).
+            
+            ### Changelog
+            ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+          draft: false
+          prerelease: false
+          files: |
+            ${{ steps.prepare_binaries.outputs.ARCHIVE_PATH }}
