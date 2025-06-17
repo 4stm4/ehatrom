@@ -42,6 +42,59 @@ pub fn detect_and_show_eeprom_info(
                     println!("Found HAT EEPROM!");
                     // Show first 16 bytes for debugging
                     println!("First 16 bytes: {:02X?}", &buf[0..16.min(buf.len())]);
+
+                    // Дополнительная диагностика заголовка
+                    if buf.len() >= 12 {
+                        let version = buf[4];
+                        let reserved = buf[5];
+                        let numatoms = u16::from_le_bytes([buf[6], buf[7]]);
+                        let eeplen = u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]);
+                        println!("EEPROM header analysis:");
+                        println!("  Version: {}", version);
+                        println!("  Reserved: {}", reserved);
+                        println!("  Number of atoms: {}", numatoms);
+                        println!("  EEPROM length: {} bytes", eeplen);
+
+                        if numatoms == 0 {
+                            println!("⚠️ Warning: Header indicates 0 atoms, which is invalid");
+                        }
+                        if eeplen as usize > buf.len() {
+                            println!(
+                                "⚠️ Warning: Header indicates EEPROM length ({} bytes) is larger than read buffer ({} bytes)",
+                                eeplen,
+                                buf.len()
+                            );
+                            println!(
+                                "   Consider using EHATROM_BUFFER_SIZE={} to read the full EEPROM",
+                                (eeplen as usize + 1024).max(buf.len() * 2)
+                            ); // Предлагаем бОльший размер буфера
+                        }
+                    }
+
+                    // Дополнительная диагностика заголовка
+                    if buf.len() >= 12 {
+                        let version = buf[4];
+                        let reserved = buf[5];
+                        let numatoms = u16::from_le_bytes([buf[6], buf[7]]);
+                        let eeplen = u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]);
+                        println!("EEPROM header analysis:");
+                        println!("  Version: {}", version);
+                        println!("  Reserved: {}", reserved);
+                        println!("  Number of atoms: {}", numatoms);
+                        println!("  EEPROM length: {} bytes", eeplen);
+
+                        if numatoms == 0 {
+                            println!("⚠️ Warning: Header indicates 0 atoms, which is invalid");
+                        }
+                        if eeplen as usize > buf.len() {
+                            println!(
+                                "⚠️ Warning: Header indicates EEPROM length ({} bytes) is larger than read buffer ({} bytes)",
+                                eeplen,
+                                buf.len()
+                            );
+                        }
+                    }
+
                     match Eeprom::from_bytes(&buf) {
                         Ok(eeprom) => {
                             println!("EEPROM found at 0x{:02X} on {}", addr, dev_path);
@@ -50,15 +103,63 @@ pub fn detect_and_show_eeprom_info(
                         }
                         Err(e) => {
                             println!("EEPROM found at 0x{:02X} but failed to parse: {}", addr, e);
-                            // Show more bytes for debugging
-                            println!(
-                                "Raw data (first 64 bytes): {:02X?}",
-                                &buf[0..64.min(buf.len())]
-                            );
+                            // Улучшенная диагностика
+                            if buf.len() >= 64 {
+                                println!("Raw data (first 64 bytes): {:02X?}", &buf[0..64]);
+                            }
+
+                            // Подробная проверка структуры
+                            if buf.len() >= 12 {
+                                // Проверка сигнатуры
+                                if &buf[0..4] != b"R-Pi" {
+                                    println!(
+                                        "❌ Invalid signature: expected 'R-Pi', found '{:?}'",
+                                        String::from_utf8_lossy(&buf[0..4])
+                                    );
+                                }
+
+                                // Проверка версии
+                                let version = buf[4];
+                                if version == 0 {
+                                    println!("❌ Invalid version: 0 (should be > 0)");
+                                }
+
+                                // Проверка атомов
+                                let numatoms = u16::from_le_bytes([buf[6], buf[7]]);
+                                if numatoms == 0 {
+                                    println!("❌ Invalid atom count: 0 (should be > 0)");
+                                }
+
+                                // Проверка размера
+                                let eeplen = u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]);
+                                if eeplen < 12 {
+                                    println!(
+                                        "❌ Invalid EEPROM length: {} (should be >= 12)",
+                                        eeplen
+                                    );
+                                }
+                                if eeplen as usize > buf.len() {
+                                    println!(
+                                        "⚠️ EEPROM data truncated: expected {} bytes, but read only {} bytes",
+                                        eeplen,
+                                        buf.len()
+                                    );
+                                }
+                            }
+
+                            // Проверка CRC
+                            if Eeprom::verify_crc(&buf) {
+                                println!("✅ CRC verification passed");
+                            } else {
+                                println!("❌ CRC verification failed");
+                            }
                         }
                     }
                 } else {
-                    println!("no HAT signature (first 4 bytes: {:02X?})", &buf[0..4]);
+                    println!(
+                        "no HAT signature (first 4 bytes: {:02X?})",
+                        &buf[0..4.min(buf.len())]
+                    );
                 }
             }
             Err(e) => {
@@ -126,7 +227,28 @@ pub fn detect_all_i2c_devices() -> Result<(), crate::EhatromError> {
     println!();
 
     let possible_addrs = [0x50]; // HAT EEPROM standard address
-    let read_len = 256;
+
+    // Поддержка чтения больших EEPROM - по умолчанию буфер 32 КБ для обнаружения
+    // Можно задать другой размер через переменную окружения EHATROM_BUFFER_SIZE
+    let read_len = match std::env::var("EHATROM_BUFFER_SIZE") {
+        Ok(size_str) => match size_str.parse::<usize>() {
+            Ok(size) => {
+                if size < 1024 {
+                    println!("Warning: Buffer size too small, using minimum 1KB");
+                    1024
+                } else {
+                    println!("Using custom buffer size: {} bytes", size);
+                    size
+                }
+            }
+            Err(_) => {
+                println!("Warning: Failed to parse EHATROM_BUFFER_SIZE, using 32KB");
+                32 * 1024
+            }
+        },
+        Err(_) => 32 * 1024, // 32 КБ по умолчанию
+    };
+
     let mut found_any = false;
 
     for device in &devices {

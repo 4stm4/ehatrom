@@ -30,6 +30,8 @@ pub enum EhatromError {
     I2cError,
     /// Invalid or corrupted data
     InvalidData,
+    /// Invalid CRC32 checksum
+    InvalidCrc,
     /// Buffer too small for operation
     BufferTooSmall,
     /// Device not found
@@ -42,7 +44,8 @@ impl core::fmt::Display for EhatromError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             EhatromError::I2cError => write!(f, "I2C communication error"),
-            EhatromError::InvalidData => write!(f, "Invalid or corrupted data"),
+            EhatromError::InvalidData => write!(f, "Invalid or corrupted EEPROM data"),
+            EhatromError::InvalidCrc => write!(f, "Invalid CRC32 checksum"),
             EhatromError::BufferTooSmall => write!(f, "Buffer too small for operation"),
             EhatromError::DeviceNotFound => write!(f, "Device not found"),
             EhatromError::Timeout => write!(f, "Timeout during operation"),
@@ -600,6 +603,30 @@ impl Eeprom {
         crc_bytes == crc.to_le_bytes()
     }
 
+    /// CRC32 check with detailed error report
+    #[cfg(feature = "std")]
+    pub fn verify_crc_with_details(data: &[u8]) -> Result<(), EhatromError> {
+        if data.len() < 4 {
+            return Err(EhatromError::InvalidData);
+        }
+        let (content, crc_bytes) = data.split_at(data.len() - 4);
+        let mut hasher = Hasher::new();
+        hasher.update(content);
+        let crc = hasher.finalize();
+        let expected_crc =
+            u32::from_le_bytes([crc_bytes[0], crc_bytes[1], crc_bytes[2], crc_bytes[3]]);
+
+        if crc_bytes == crc.to_le_bytes() {
+            Ok(())
+        } else {
+            eprintln!(
+                "CRC check failed: expected {:08X}, calculated {:08X}",
+                expected_crc, crc
+            );
+            Err(EhatromError::InvalidCrc)
+        }
+    }
+
     /// Serialize EEPROM structure to `Vec<u8>` (without CRC)
     #[cfg(feature = "alloc")]
     pub fn serialize(&self) -> Vec<u8> {
@@ -883,6 +910,70 @@ impl From<u8> for AtomType {
 
 #[cfg(all(feature = "linux", any(target_os = "linux", target_os = "android")))]
 pub fn write_to_eeprom_i2c(data: &[u8], dev_path: &str, addr: u16) -> Result<(), EhatromError> {
+    // Validate EEPROM data before writing
+    if data.len() < 12 {
+        #[cfg(feature = "std")]
+        eprintln!("Error: Data too short for EEPROM (minimum 12 bytes required)");
+        return Err(EhatromError::InvalidData);
+    }
+
+    // Check signature "R-Pi"
+    if &data[0..4] != b"R-Pi" {
+        #[cfg(feature = "std")]
+        eprintln!("Error: Invalid EEPROM signature (should be 'R-Pi')");
+        return Err(EhatromError::InvalidData);
+    }
+
+    // Verify that the file contains a proper EEPROM structure
+    let version = data[4];
+    if version == 0 {
+        #[cfg(feature = "std")]
+        eprintln!("Error: Invalid EEPROM version (should be > 0)");
+        return Err(EhatromError::InvalidData);
+    }
+
+    let numatoms = u16::from_le_bytes([data[6], data[7]]);
+    let eeplen = u32::from_le_bytes([data[8], data[9], data[10], data[11]]);
+
+    if numatoms == 0 {
+        #[cfg(feature = "std")]
+        eprintln!("Error: Invalid atom count (should be > 0)");
+        return Err(EhatromError::InvalidData);
+    }
+
+    if eeplen as usize > data.len() {
+        #[cfg(feature = "std")]
+        eprintln!(
+            "Error: EEPROM length in header ({}) exceeds actual data size ({})",
+            eeplen,
+            data.len()
+        );
+        return Err(EhatromError::InvalidData);
+    }
+
+    if eeplen < 12 {
+        #[cfg(feature = "std")]
+        eprintln!("Error: EEPROM length in header too small (minimum 12 bytes)");
+        return Err(EhatromError::InvalidData);
+    }
+
+    // Check CRC if available (we expect it to be the last 4 bytes)
+    if data.len() >= 16 && !Eeprom::verify_crc(data) {
+        #[cfg(feature = "std")]
+        {
+            let (content, crc_bytes) = data.split_at(data.len() - 4);
+            let mut hasher = Hasher::new();
+            hasher.update(content);
+            let crc = hasher.finalize();
+            let expected_crc =
+                u32::from_le_bytes([crc_bytes[0], crc_bytes[1], crc_bytes[2], crc_bytes[3]]);
+            eprintln!("Warning: CRC32 check failed for EEPROM data");
+            eprintln!("  Expected: {:08X}", expected_crc);
+            eprintln!("  Calculated: {:08X}", crc);
+            eprintln!("Writing anyway, but data may be corrupted!");
+        }
+    }
+
     let mut dev = LinuxI2CDevice::new(dev_path, addr).map_err(|_| EhatromError::I2cError)?;
     // EEPROM HAT: use page write (16 bytes per page) with 2-byte offset
     let page_size = 16;

@@ -34,10 +34,12 @@ fn main() {
         eprintln!("Notes:");
         eprintln!("  HAT EEPROM always uses address 0x50 (automatic)");
         eprintln!("  Default I2C device is /dev/i2c-0 (HAT standard)");
+        eprintln!("  Default buffer size is 32KB, customize with EHATROM_BUFFER_SIZE env variable");
         eprintln!("Examples:");
         eprintln!("  sudo ehatrom read hat_data.bin          # Read from /dev/i2c-0 to file");
         eprintln!("  sudo ehatrom write hat_data.bin         # Write from file to /dev/i2c-0");
         eprintln!("  sudo ehatrom read /dev/i2c-1 hat.bin    # Read from specific I2C device");
+        eprintln!("  EHATROM_BUFFER_SIZE=1048576 sudo ehatrom read big.bin  # Read 1MB EEPROM");
         eprintln!("  sudo ehatrom detect                     # Scan /dev/i2c-0 (HAT standard)");
         eprintln!("  sudo ehatrom detect --all               # Scan all I2C devices");
         eprintln!("  sudo ehatrom detect /dev/i2c-1          # Scan specific device");
@@ -62,7 +64,29 @@ fn main() {
                     (args[2].as_str(), &args[3])
                 };
                 let addr = 0x50u16; // HAT EEPROM fixed address
-                let buf = vec![0u8; 256];
+
+                // Поддержка чтения больших EEPROM - по умолчанию буфер 32 КБ
+                // Можно задать другой размер через переменную окружения EHATROM_BUFFER_SIZE
+                let buf_size = match env::var("EHATROM_BUFFER_SIZE") {
+                    Ok(size_str) => match size_str.parse::<usize>() {
+                        Ok(size) => {
+                            if size < 1024 {
+                                println!("Warning: Buffer size too small, using minimum 1KB");
+                                1024
+                            } else {
+                                println!("Using custom buffer size: {} bytes", size);
+                                size
+                            }
+                        }
+                        Err(_) => {
+                            println!("Warning: Failed to parse EHATROM_BUFFER_SIZE, using 32KB");
+                            32 * 1024
+                        }
+                    },
+                    Err(_) => 32 * 1024, // 32 КБ по умолчанию
+                };
+
+                let buf = vec![0u8; buf_size];
                 let mut buf = buf; // for compatibility with function signature
                 match read_from_eeprom_i2c(&mut buf, dev, addr, 0) {
                     Ok(()) => {
@@ -71,8 +95,11 @@ fn main() {
                             process::exit(1);
                         }
                         println!(
-                            "HAT EEPROM read from {} (0x50) and saved to {}",
-                            dev, output_file
+                            "HAT EEPROM read from {} (0x50) and saved to {} ({} bytes buffer used)",
+                            dev, output_file, buf_size
+                        );
+                        println!(
+                            "Note: Set EHATROM_BUFFER_SIZE env variable if you need a different buffer size"
                         );
                     }
                     Err(e) => {
@@ -184,7 +211,32 @@ fn main() {
                             "/dev/i2c-0" // HAT EEPROM is typically on i2c-0
                         };
                         let possible_addrs = &[0x50]; // HAT EEPROM is always at 0x50
-                        let read_len = 1024; // read up to 1KB
+
+                        // Поддержка чтения больших EEPROM - по умолчанию буфер 32 КБ
+                        // Можно задать другой размер через переменную окружения EHATROM_BUFFER_SIZE
+                        let read_len = match env::var("EHATROM_BUFFER_SIZE") {
+                            Ok(size_str) => match size_str.parse::<usize>() {
+                                Ok(size) => {
+                                    if size < 1024 {
+                                        println!(
+                                            "Warning: Buffer size too small, using minimum 1KB"
+                                        );
+                                        1024
+                                    } else {
+                                        println!("Using custom buffer size: {} bytes", size);
+                                        size
+                                    }
+                                }
+                                Err(_) => {
+                                    println!(
+                                        "Warning: Failed to parse EHATROM_BUFFER_SIZE, using 32KB"
+                                    );
+                                    32 * 1024
+                                }
+                            },
+                            Err(_) => 32 * 1024, // 32 КБ по умолчанию
+                        };
+
                         match detect_and_show_eeprom_info(dev, possible_addrs, read_len) {
                             Ok(()) => {}
                             Err(e) => {

@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+- **IMPROVEMENT**: Added support for reading and writing large EEPROMs (up to several megabytes). Buffer size is now configurable via the `EHATROM_BUFFER_SIZE` environment variable for both CLI and detection commands. Default is 32KB, but you can set any value (e.g., `EHATROM_BUFFER_SIZE=1048576` for 1MB).
+
 ## [0.3.1] — 2025-06-17
 - **IMPROVEMENT**: Extracted ehatrom library into a separate repository
 - **FIXED**: Updated repository links in documentation and metadata
