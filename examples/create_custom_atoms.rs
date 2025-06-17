@@ -49,11 +49,14 @@ fn main() {
     // Custom atom 2: Sensor calibration data (example of binary data)
     let mut sensor_cal = Vec::new();
     // Temperature offset and gain
-    sensor_cal.extend_from_slice(&[(-2.5f32).to_be_bytes(), 1.03f32.to_be_bytes()].concat());
+    sensor_cal.extend_from_slice(&((-2.5f32).to_be_bytes()));
+    sensor_cal.extend_from_slice(&(1.03f32.to_be_bytes()));
     // Humidity offset and gain
-    sensor_cal.extend_from_slice(&[1.2f32.to_be_bytes(), 0.98f32.to_be_bytes()].concat());
+    sensor_cal.extend_from_slice(&(1.2f32.to_be_bytes()));
+    sensor_cal.extend_from_slice(&(0.98f32.to_be_bytes()));
     // Pressure offset and gain
-    sensor_cal.extend_from_slice(&[15.0f32.to_be_bytes(), 1.0f32.to_be_bytes()].concat());
+    sensor_cal.extend_from_slice(&(15.0f32.to_be_bytes()));
+    sensor_cal.extend_from_slice(&(1.0f32.to_be_bytes()));
     custom_atoms.push((0x82, sensor_cal)); // Using tuple format (type, data)
 
     // Custom atom 3: Hardware version info as string
