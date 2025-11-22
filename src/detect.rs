@@ -23,6 +23,9 @@ use alloc::{
 use std::{print, println};
 
 #[cfg(all(feature = "linux", any(target_os = "linux", target_os = "android")))]
+/// Scans the provided I2C device and addresses, printing parsed EEPROM details if found.
+///
+/// Returns [`EhatromError`](crate::EhatromError) when I2C access or parsing fails.
 pub fn detect_and_show_eeprom_info(
     dev_path: &str,
     possible_addrs: &[u16],
@@ -43,7 +46,7 @@ pub fn detect_and_show_eeprom_info(
                     // Show first 16 bytes for debugging
                     println!("First 16 bytes: {:02X?}", &buf[0..16.min(buf.len())]);
 
-                    // Дополнительная диагностика заголовка
+                    // Additional header diagnostics
                     if buf.len() >= 12 {
                         let version = buf[4];
                         let reserved = buf[5];
@@ -67,31 +70,7 @@ pub fn detect_and_show_eeprom_info(
                             println!(
                                 "   Consider using EHATROM_BUFFER_SIZE={} to read the full EEPROM",
                                 (eeplen as usize + 1024).max(buf.len() * 2)
-                            ); // Предлагаем бОльший размер буфера
-                        }
-                    }
-
-                    // Дополнительная диагностика заголовка
-                    if buf.len() >= 12 {
-                        let version = buf[4];
-                        let reserved = buf[5];
-                        let numatoms = u16::from_le_bytes([buf[6], buf[7]]);
-                        let eeplen = u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]);
-                        println!("EEPROM header analysis:");
-                        println!("  Version: {}", version);
-                        println!("  Reserved: {}", reserved);
-                        println!("  Number of atoms: {}", numatoms);
-                        println!("  EEPROM length: {} bytes", eeplen);
-
-                        if numatoms == 0 {
-                            println!("⚠️ Warning: Header indicates 0 atoms, which is invalid");
-                        }
-                        if eeplen as usize > buf.len() {
-                            println!(
-                                "⚠️ Warning: Header indicates EEPROM length ({} bytes) is larger than read buffer ({} bytes)",
-                                eeplen,
-                                buf.len()
-                            );
+                            ); // Suggest a larger buffer size
                         }
                     }
 
@@ -103,14 +82,14 @@ pub fn detect_and_show_eeprom_info(
                         }
                         Err(e) => {
                             println!("EEPROM found at 0x{:02X} but failed to parse: {}", addr, e);
-                            // Улучшенная диагностика
+                            // Improved diagnostics
                             if buf.len() >= 64 {
                                 println!("Raw data (first 64 bytes): {:02X?}", &buf[0..64]);
                             }
 
-                            // Подробная проверка структуры
+                            // Detailed structure validation
                             if buf.len() >= 12 {
-                                // Проверка сигнатуры
+                                // Signature validation
                                 if &buf[0..4] != b"R-Pi" {
                                     println!(
                                         "❌ Invalid signature: expected 'R-Pi', found '{:?}'",
@@ -118,19 +97,19 @@ pub fn detect_and_show_eeprom_info(
                                     );
                                 }
 
-                                // Проверка версии
+                                // Version check
                                 let version = buf[4];
                                 if version == 0 {
                                     println!("❌ Invalid version: 0 (should be > 0)");
                                 }
 
-                                // Проверка атомов
+                                // Atom count verification
                                 let numatoms = u16::from_le_bytes([buf[6], buf[7]]);
                                 if numatoms == 0 {
                                     println!("❌ Invalid atom count: 0 (should be > 0)");
                                 }
 
-                                // Проверка размера
+                                // Size validation
                                 let eeplen = u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]);
                                 if eeplen < 12 {
                                     println!(
@@ -147,7 +126,7 @@ pub fn detect_and_show_eeprom_info(
                                 }
                             }
 
-                            // Проверка CRC
+                            // CRC verification
                             if Eeprom::verify_crc(&buf) {
                                 println!("✅ CRC verification passed");
                             } else {
@@ -172,6 +151,7 @@ pub fn detect_and_show_eeprom_info(
 }
 
 #[cfg(all(feature = "linux", any(target_os = "linux", target_os = "android")))]
+/// Returns a sorted list of `/dev/i2c-*` device paths available on the host.
 pub fn find_i2c_devices() -> Vec<String> {
     #[cfg(feature = "std")]
     use std::fs;
@@ -214,6 +194,7 @@ pub fn find_i2c_devices() -> Vec<String> {
 }
 
 #[cfg(all(feature = "linux", any(target_os = "linux", target_os = "android")))]
+/// Scans all detected I2C buses and attempts to find HAT EEPROMs.
 pub fn detect_all_i2c_devices() -> Result<(), crate::EhatromError> {
     let devices = find_i2c_devices();
 
@@ -228,8 +209,8 @@ pub fn detect_all_i2c_devices() -> Result<(), crate::EhatromError> {
 
     let possible_addrs = [0x50]; // HAT EEPROM standard address
 
-    // Поддержка чтения больших EEPROM - по умолчанию буфер 32 КБ для обнаружения
-    // Можно задать другой размер через переменную окружения EHATROM_BUFFER_SIZE
+    // Support reading large EEPROMs - default buffer is 32 KB for detection
+    // Custom size can be set via the EHATROM_BUFFER_SIZE environment variable
     let read_len = match std::env::var("EHATROM_BUFFER_SIZE") {
         Ok(size_str) => match size_str.parse::<usize>() {
             Ok(size) => {
@@ -246,7 +227,7 @@ pub fn detect_all_i2c_devices() -> Result<(), crate::EhatromError> {
                 32 * 1024
             }
         },
-        Err(_) => 32 * 1024, // 32 КБ по умолчанию
+        Err(_) => 32 * 1024, // 32 KB by default
     };
 
     let mut found_any = false;
@@ -278,11 +259,13 @@ pub fn detect_all_i2c_devices() -> Result<(), crate::EhatromError> {
 }
 
 #[cfg(not(all(feature = "linux", any(target_os = "linux", target_os = "android"))))]
+/// Stub for platforms without Linux I2C support; always returns an empty list.
 pub fn find_i2c_devices() -> Vec<String> {
     Vec::new()
 }
 
 #[cfg(not(all(feature = "linux", any(target_os = "linux", target_os = "android"))))]
+/// Stub for platforms without Linux I2C support; exits with an error when used.
 pub fn detect_all_i2c_devices() -> Result<(), crate::EhatromError> {
     #[cfg(feature = "std")]
     {
@@ -294,6 +277,7 @@ pub fn detect_all_i2c_devices() -> Result<(), crate::EhatromError> {
 }
 
 #[cfg(not(all(feature = "linux", any(target_os = "linux", target_os = "android"))))]
+/// Stub for platforms without Linux I2C support; returns an error or exits.
 pub fn detect_and_show_eeprom_info(
     _dev_path: &str,
     _possible_addrs: &[u16],
