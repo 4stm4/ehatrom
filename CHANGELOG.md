@@ -9,8 +9,6 @@ All notable changes to this project will be documented in this file.
 - **IMPROVEMENT**: Documentation and examples updated for the new series release.
 - **FIXED**: Final cleanup and refactoring before the new series release.
 
-## [Unreleased]
-
 ## [0.3.2] — 2025-06-17
 - **IMPROVEMENT**: Added support for reading and writing large EEPROMs (up to several megabytes). Buffer size is now configurable via the `EHATROM_BUFFER_SIZE` environment variable for both CLI and detection commands. Default is 32KB, but you can set any value (e.g., `EHATROM_BUFFER_SIZE=1048576` for 1MB).
 - **FIXED**: Improved I2C reading reliability by implementing page-based read (32 bytes per read operation) for better compatibility with real EEPROM chips that don't support reading large blocks at once.
