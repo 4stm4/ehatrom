@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+
+
+## [0.3.3] — 2025-11-22
+- **IMPROVEMENT**: All main structures and fields are now public for easier integration in external projects.
+- **IMPROVEMENT**: Documentation and examples updated for the new series release.
+- **FIXED**: Final cleanup and refactoring before the new series release.
+
 ## [Unreleased]
 
 ## [0.3.2] — 2025-06-17
