@@ -65,8 +65,8 @@ fn main() {
                 };
                 let addr = 0x50u16; // HAT EEPROM fixed address
 
-                // Поддержка чтения больших EEPROM - по умолчанию буфер 32 КБ
-                // Можно задать другой размер через переменную окружения EHATROM_BUFFER_SIZE
+                // Support reading large EEPROMs - default buffer is 32 KB
+                // You can override the size with the EHATROM_BUFFER_SIZE environment variable
                 let buf_size = match env::var("EHATROM_BUFFER_SIZE") {
                     Ok(size_str) => match size_str.parse::<usize>() {
                         Ok(size) => {
@@ -83,7 +83,7 @@ fn main() {
                             32 * 1024
                         }
                     },
-                    Err(_) => 32 * 1024, // 32 КБ по умолчанию
+                    Err(_) => 32 * 1024, // 32 KB by default
                 };
 
                 let buf = vec![0u8; buf_size];
@@ -212,8 +212,8 @@ fn main() {
                         };
                         let possible_addrs = &[0x50]; // HAT EEPROM is always at 0x50
 
-                        // Поддержка чтения больших EEPROM - по умолчанию буфер 32 КБ
-                        // Можно задать другой размер через переменную окружения EHATROM_BUFFER_SIZE
+                        // Support reading large EEPROMs - default buffer is 32 KB
+                        // You can override the size with the EHATROM_BUFFER_SIZE environment variable
                         let read_len = match env::var("EHATROM_BUFFER_SIZE") {
                             Ok(size_str) => match size_str.parse::<usize>() {
                                 Ok(size) => {
@@ -234,7 +234,7 @@ fn main() {
                                     32 * 1024
                                 }
                             },
-                            Err(_) => 32 * 1024, // 32 КБ по умолчанию
+                            Err(_) => 32 * 1024, // 32 KB by default
                         };
 
                         match detect_and_show_eeprom_info(dev, possible_addrs, read_len) {

@@ -337,7 +337,10 @@ pub struct Eeprom {
 }
 
 impl Eeprom {
-    /// Reads EEPROM structure from a byte slice
+    /// Parses an EEPROM image from a byte slice, validating the signature and CRC.
+    ///
+    /// This variant allocates owned buffers for atoms, making it suitable for
+    /// environments where `alloc` is available.
     #[cfg(feature = "alloc")]
     pub fn from_bytes(data: &[u8]) -> Result<Self, &'static str> {
         use core::mem::size_of;
@@ -416,8 +419,10 @@ impl Eeprom {
         })
     }
 
-    /// Reads EEPROM structure from a byte slice (no_std version)
-    /// Returns references to data instead of owned data
+    /// Parses an EEPROM image from a byte slice without heap allocations.
+    ///
+    /// Returns references to the provided slice, which makes it usable in
+    /// `no_std` environments where only static data is available.
     #[cfg(not(feature = "alloc"))]
     pub fn from_bytes_no_alloc(data: &'static [u8]) -> Result<Self, &'static str> {
         use core::mem::size_of;
@@ -904,6 +909,10 @@ impl From<u8> for AtomType {
     }
 }
 
+/// Writes a prepared EEPROM image to the target I2C device.
+///
+/// The function performs basic structural validation (including signature,
+/// header fields, and CRC) before issuing page writes to the given address.
 #[cfg(all(feature = "linux", any(target_os = "linux", target_os = "android")))]
 pub fn write_to_eeprom_i2c(data: &[u8], dev_path: &str, addr: u16) -> Result<(), EhatromError> {
     // Validate EEPROM data before writing
@@ -980,6 +989,10 @@ pub fn write_to_eeprom_i2c(data: &[u8], dev_path: &str, addr: u16) -> Result<(),
     Ok(())
 }
 
+/// Reads EEPROM contents from the target I2C device into the provided buffer.
+///
+/// Reading starts at the specified offset and continues until the buffer is
+/// filled or the device reports an error.
 #[cfg(all(feature = "linux", any(target_os = "linux", target_os = "android")))]
 pub fn read_from_eeprom_i2c(
     buf: &mut [u8],
