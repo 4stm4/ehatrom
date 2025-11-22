@@ -210,15 +210,13 @@ fn main() {
                         } else {
                             "/dev/i2c-0" // HAT EEPROM is typically on i2c-0
                         };
-                        let possible_addrs = &[0x50]; // HAT EEPROM is always at 0x50
-
                         // Support reading large EEPROMs - default buffer is 32 KB
                         // You can override the size with the EHATROM_BUFFER_SIZE environment variable
                         let read_len = match env::var("EHATROM_BUFFER_SIZE") {
                             Ok(size_str) => match size_str.parse::<usize>() {
                                 Ok(size) => {
                                     if size < 1024 {
-                                        println!(
+                                        eprintln!(
                                             "Warning: Buffer size too small, using minimum 1KB"
                                         );
                                         1024
@@ -228,7 +226,7 @@ fn main() {
                                     }
                                 }
                                 Err(_) => {
-                                    println!(
+                                    eprintln!(
                                         "Warning: Failed to parse EHATROM_BUFFER_SIZE, using 32KB"
                                     );
                                     32 * 1024
@@ -237,7 +235,7 @@ fn main() {
                             Err(_) => 32 * 1024, // 32 KB by default
                         };
 
-                        match detect_and_show_eeprom_info(dev, possible_addrs, read_len) {
+                        match detect_and_show_eeprom_info(dev, read_len) {
                             Ok(()) => {}
                             Err(e) => {
                                 eprintln!("Detection error: {e}");
