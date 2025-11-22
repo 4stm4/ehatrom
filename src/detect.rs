@@ -23,129 +23,127 @@ use alloc::{
 use std::{print, println};
 
 #[cfg(all(feature = "linux", any(target_os = "linux", target_os = "android")))]
-/// Scans the provided I2C device and addresses, printing parsed EEPROM details if found.
+fn print_header_diagnostics(buf: &[u8], buffer_len: usize) {
+    if buf.len() < 12 {
+        eprintln!(
+            "⚠️ Warning: Not enough data to read EEPROM header ({} bytes available)",
+            buf.len()
+        );
+        return;
+    }
+
+    let version = buf[4];
+    let reserved = buf[5];
+    let numatoms = u16::from_le_bytes([buf[6], buf[7]]);
+    let eeplen = u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]);
+
+    println!("EEPROM header analysis:");
+    println!("  Version: {}", version);
+    println!("  Reserved: {}", reserved);
+    println!("  Number of atoms: {}", numatoms);
+    println!("  EEPROM length: {} bytes", eeplen);
+
+    if numatoms == 0 {
+        eprintln!("⚠️ Warning: Header indicates 0 atoms, which is invalid");
+    }
+    if eeplen < 12 {
+        eprintln!("❌ Invalid EEPROM length: {} (should be >= 12)", eeplen);
+    } else if eeplen as usize > buffer_len {
+        eprintln!(
+            "⚠️ Warning: Header indicates EEPROM length ({} bytes) is larger than read buffer ({} bytes)",
+            eeplen, buffer_len
+        );
+    }
+}
+
+#[cfg(all(feature = "linux", any(target_os = "linux", target_os = "android")))]
+fn read_eeprom_with_dynamic_buffer(
+    dev_path: &str,
+    addr: u16,
+    initial_len: usize,
+) -> Result<Vec<u8>, crate::EhatromError> {
+    use crate::read_from_eeprom_i2c;
+
+    const MIN_HEADER_LEN: usize = 12;
+    let mut header_buf = vec![0u8; MIN_HEADER_LEN];
+    read_from_eeprom_i2c(&mut header_buf, dev_path, addr, 0)?;
+
+    let eeplen = if &header_buf[0..4] == b"R-Pi" {
+        Some(
+            u32::from_le_bytes([header_buf[8], header_buf[9], header_buf[10], header_buf[11]])
+                as usize,
+        )
+    } else {
+        None
+    };
+
+    let desired_len = initial_len
+        .max(MIN_HEADER_LEN)
+        .max(eeplen.unwrap_or(MIN_HEADER_LEN));
+
+    if desired_len <= header_buf.len() {
+        return Ok(header_buf);
+    }
+
+    let mut buf = vec![0u8; desired_len];
+    read_from_eeprom_i2c(&mut buf, dev_path, addr, 0)?;
+    Ok(buf)
+}
+
+#[cfg(all(feature = "linux", any(target_os = "linux", target_os = "android")))]
+/// Scans the provided I2C device, printing parsed EEPROM details if found.
 ///
 /// Returns [`EhatromError`](crate::EhatromError) when I2C access or parsing fails.
 pub fn detect_and_show_eeprom_info(
     dev_path: &str,
-    possible_addrs: &[u16],
     read_len: usize,
 ) -> Result<(), crate::EhatromError> {
-    use crate::{Eeprom, read_from_eeprom_i2c};
+    use crate::Eeprom;
+
+    const HAT_EEPROM_ADDR: u16 = 0x50;
 
     println!("Scanning I2C bus {} for HAT EEPROM...", dev_path);
-    println!("Checking addresses: {:02X?}", possible_addrs);
+    println!("Using address: 0x{:02X}", HAT_EEPROM_ADDR);
+    print!("Trying 0x{:02X}... ", HAT_EEPROM_ADDR);
 
-    for &addr in possible_addrs {
-        print!("Trying 0x{:02X}... ", addr);
-        let mut buf = vec![0u8; read_len];
-        match read_from_eeprom_i2c(&mut buf, dev_path, addr, 0) {
-            Ok(_) => {
-                if buf.len() >= 4 && &buf[0..4] == b"R-Pi" {
-                    println!("Found HAT EEPROM!");
-                    // Show first 16 bytes for debugging
-                    println!("First 16 bytes: {:02X?}", &buf[0..16.min(buf.len())]);
+    let buf = match read_eeprom_with_dynamic_buffer(dev_path, HAT_EEPROM_ADDR, read_len) {
+        Ok(buf) => buf,
+        Err(e) => {
+            eprintln!("read error: {}", e);
+            println!("No valid Raspberry Pi HAT EEPROM found on bus {}", dev_path);
+            return Ok(());
+        }
+    };
 
-                    // Additional header diagnostics
-                    if buf.len() >= 12 {
-                        let version = buf[4];
-                        let reserved = buf[5];
-                        let numatoms = u16::from_le_bytes([buf[6], buf[7]]);
-                        let eeplen = u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]);
-                        println!("EEPROM header analysis:");
-                        println!("  Version: {}", version);
-                        println!("  Reserved: {}", reserved);
-                        println!("  Number of atoms: {}", numatoms);
-                        println!("  EEPROM length: {} bytes", eeplen);
+    if buf.len() >= 4 && &buf[0..4] == b"R-Pi" {
+        println!("Found HAT EEPROM!");
+        println!("First 16 bytes: {:02X?}", &buf[0..16.min(buf.len())]);
 
-                        if numatoms == 0 {
-                            println!("⚠️ Warning: Header indicates 0 atoms, which is invalid");
-                        }
-                        if eeplen as usize > buf.len() {
-                            println!(
-                                "⚠️ Warning: Header indicates EEPROM length ({} bytes) is larger than read buffer ({} bytes)",
-                                eeplen,
-                                buf.len()
-                            );
-                            println!(
-                                "   Consider using EHATROM_BUFFER_SIZE={} to read the full EEPROM",
-                                (eeplen as usize + 1024).max(buf.len() * 2)
-                            ); // Suggest a larger buffer size
-                        }
-                    }
+        print_header_diagnostics(&buf, buf.len());
 
-                    match Eeprom::from_bytes(&buf) {
-                        Ok(eeprom) => {
-                            println!("EEPROM found at 0x{:02X} on {}", addr, dev_path);
-                            println!("{eeprom}");
-                            return Ok(());
-                        }
-                        Err(e) => {
-                            println!("EEPROM found at 0x{:02X} but failed to parse: {}", addr, e);
-                            // Improved diagnostics
-                            if buf.len() >= 64 {
-                                println!("Raw data (first 64 bytes): {:02X?}", &buf[0..64]);
-                            }
-
-                            // Detailed structure validation
-                            if buf.len() >= 12 {
-                                // Signature validation
-                                if &buf[0..4] != b"R-Pi" {
-                                    println!(
-                                        "❌ Invalid signature: expected 'R-Pi', found '{:?}'",
-                                        String::from_utf8_lossy(&buf[0..4])
-                                    );
-                                }
-
-                                // Version check
-                                let version = buf[4];
-                                if version == 0 {
-                                    println!("❌ Invalid version: 0 (should be > 0)");
-                                }
-
-                                // Atom count verification
-                                let numatoms = u16::from_le_bytes([buf[6], buf[7]]);
-                                if numatoms == 0 {
-                                    println!("❌ Invalid atom count: 0 (should be > 0)");
-                                }
-
-                                // Size validation
-                                let eeplen = u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]);
-                                if eeplen < 12 {
-                                    println!(
-                                        "❌ Invalid EEPROM length: {} (should be >= 12)",
-                                        eeplen
-                                    );
-                                }
-                                if eeplen as usize > buf.len() {
-                                    println!(
-                                        "⚠️ EEPROM data truncated: expected {} bytes, but read only {} bytes",
-                                        eeplen,
-                                        buf.len()
-                                    );
-                                }
-                            }
-
-                            // CRC verification
-                            if Eeprom::verify_crc(&buf) {
-                                println!("✅ CRC verification passed");
-                            } else {
-                                println!("❌ CRC verification failed");
-                            }
-                        }
-                    }
-                } else {
-                    println!(
-                        "no HAT signature (first 4 bytes: {:02X?})",
-                        &buf[0..4.min(buf.len())]
-                    );
-                }
+        match Eeprom::from_bytes(&buf) {
+            Ok(eeprom) => {
+                println!("EEPROM found at 0x{:02X} on {}", HAT_EEPROM_ADDR, dev_path);
+                println!("{eeprom}");
+                return Ok(());
             }
             Err(e) => {
-                println!("read error: {}", e);
+                eprintln!(
+                    "EEPROM found at 0x{:02X} but failed to parse: {}",
+                    HAT_EEPROM_ADDR, e
+                );
+                if buf.len() >= 64 {
+                    println!("Raw data (first 64 bytes): {:02X?}", &buf[0..64]);
+                }
             }
         }
+    } else {
+        println!(
+            "no HAT signature (first 4 bytes: {:02X?})",
+            &buf[0..4.min(buf.len())]
+        );
     }
+
     println!("No valid Raspberry Pi HAT EEPROM found on bus {}", dev_path);
     Ok(())
 }
@@ -207,15 +205,13 @@ pub fn detect_all_i2c_devices() -> Result<(), crate::EhatromError> {
     println!("Found {} I2C device(s): {:?}", devices.len(), devices);
     println!();
 
-    let possible_addrs = [0x50]; // HAT EEPROM standard address
-
     // Support reading large EEPROMs - default buffer is 32 KB for detection
     // Custom size can be set via the EHATROM_BUFFER_SIZE environment variable
     let read_len = match std::env::var("EHATROM_BUFFER_SIZE") {
         Ok(size_str) => match size_str.parse::<usize>() {
             Ok(size) => {
                 if size < 1024 {
-                    println!("Warning: Buffer size too small, using minimum 1KB");
+                    eprintln!("Warning: Buffer size too small, using minimum 1KB");
                     1024
                 } else {
                     println!("Using custom buffer size: {} bytes", size);
@@ -223,7 +219,7 @@ pub fn detect_all_i2c_devices() -> Result<(), crate::EhatromError> {
                 }
             }
             Err(_) => {
-                println!("Warning: Failed to parse EHATROM_BUFFER_SIZE, using 32KB");
+                eprintln!("Warning: Failed to parse EHATROM_BUFFER_SIZE, using 32KB");
                 32 * 1024
             }
         },
@@ -234,7 +230,7 @@ pub fn detect_all_i2c_devices() -> Result<(), crate::EhatromError> {
 
     for device in &devices {
         println!("=== Scanning {} ===", device);
-        match detect_and_show_eeprom_info(device, &possible_addrs, read_len) {
+        match detect_and_show_eeprom_info(device, read_len) {
             Ok(_) => {
                 found_any = true;
                 println!();
@@ -280,7 +276,6 @@ pub fn detect_all_i2c_devices() -> Result<(), crate::EhatromError> {
 /// Stub for platforms without Linux I2C support; returns an error or exits.
 pub fn detect_and_show_eeprom_info(
     _dev_path: &str,
-    _possible_addrs: &[u16],
     _read_len: usize,
 ) -> Result<(), crate::EhatromError> {
     #[cfg(feature = "std")]
