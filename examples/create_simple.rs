@@ -14,7 +14,6 @@ fn main() {
 
     // Create a minimal vendor info atom
     let vendor_atom = VendorInfoAtom::new(
-        0x5349, // vendor_id (example: "SI" for Simple)
         0x4D50, // product_id (example: "MP" for MiniProduct)
         1,      // product_ver
         "Simple",
@@ -27,7 +26,8 @@ fn main() {
 
     // Create minimal GPIO map
     let gpio_atom = GpioMapAtom {
-        flags: 0x0000,
+        flags: 0x00,
+        power: 0x00,
         pins: [0u8; 28], // All pins unused
     };
 
@@ -55,15 +55,15 @@ fn main() {
     // Update header with correct counts and length
     eeprom.update_header();
 
-    // Serialize with CRC
+    // Serialize a complete, spec-compliant HAT image (per-atom CRC-16 embedded)
     #[cfg(feature = "alloc")]
-    let serialized = eeprom.serialize_with_crc();
+    let serialized = eeprom.serialize();
 
     #[cfg(not(feature = "alloc"))]
     let serialized = {
         let mut buffer = [0u8; 1024]; // Буфер достаточного размера
         let size = eeprom
-            .serialize_with_crc_to_slice(&mut buffer)
+            .serialize_to_slice(&mut buffer)
             .expect("Failed to serialize EEPROM");
         &buffer[..size]
     };
@@ -78,7 +78,7 @@ fn main() {
     println!("Created tests/data/simple.bin ({} bytes)", serialized.len());
 
     // Verify the created file
-    if Eeprom::verify_crc(&serialized) {
+    if Eeprom::verify(&serialized) {
         println!("✅ CRC verification passed");
     } else {
         println!("❌ CRC verification failed");

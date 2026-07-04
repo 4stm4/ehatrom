@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 
 
+## [0.4.0] — 2026-07-03
+**BREAKING**: The on-disk format is now byte-compatible with the official Raspberry Pi HAT ID EEPROM format (reference `eepmake`/`eepdump`, `raspberrypi/utils/eeptools`). Images produced by earlier versions used a self-consistent but non-standard layout and will not be accepted by a Raspberry Pi bootloader or `eepdump`; regenerate them with this release.
+
+- **BREAKING**: `AtomHeader` is now `type:u16`, `count:u16`, `dlen:u32` (little-endian), matching the spec 8-byte atom header. `dlen` now counts the atom data **plus** the trailing 2-byte CRC (`dlen = data + 2`).
+- **BREAKING**: Each atom now carries its own trailing **CRC-16** (reflected, polynomial `0x8005`, a.k.a. CRC-16/ARC) computed over the atom header and data — exactly as `eepmake` does. The previous single whole-image CRC-32 is gone.
+- **BREAKING**: `VendorInfoAtom` follows `struct vendor_info_d`: `uuid`/`pid`/`pver` plus variable-length vendor/product strings with `vslen`/`pslen`. The non-spec `vendor_id` field was removed; `VendorInfoAtom::new` no longer takes it.
+- **BREAKING**: `GpioMapAtom` is now `flags:u8`, `power:u8`, `pins[28]` (was `flags:u16`, `pins[28]`).
+- **BREAKING**: Atom type ids corrected to the spec values — vendor `0x0001`, GPIO bank0 `0x0002`, DT blob `0x0003`, custom `0x0004`, GPIO bank1 `0x0005` (was `0x04`, which collided with custom data). Custom atoms are always emitted with type `0x0004`.
+- **BREAKING**: Pin `func_sel` encoding corrected — `0x00` = input, `0x01` = output (was `0x01`/`0x02`).
+- **BREAKING**: API changes — `serialize_with_crc`/`serialize_with_crc_to_slice`/`serialize_to_buffer` replaced by `serialize()` (alloc), `serialize_to_slice()` (no_std) and `serialize_into()` (both), which emit a complete valid image. `verify_crc` replaced by `verify()`, which checks every per-atom CRC-16.
+- **FIXED**: Serialization no longer casts `#[repr(C, packed)]` structs through raw pointers; all fields are written/read as explicit little-endian, so output is identical on big-endian hosts.
+- **ADDED**: `tests/hat_golden.rs` — a byte-exact golden image plus a CRC-16 reference check value (`crc16(b"123456789") == 0xBB3D`) that pins compatibility with the reference tools.
+
 ## [0.3.3] — 2025-11-22
 - **IMPROVEMENT**: All main structures and fields are now public for easier integration in external projects.
 - **IMPROVEMENT**: Documentation and examples updated for the new series release.

@@ -1,12 +1,12 @@
 [package]
 name = "ehatrom"
-version = "0.3.3"
+version = "0.4.0"
 edition = "2024"
-description = "EEPROM HAT library for Raspberry Pi HATs (serialization, I2C, CRC32, custom atoms)"
+description = "EEPROM library for Raspberry Pi HATs, byte-compatible with the official eepmake/eepdump format (atoms, per-atom CRC-16, I2C)"
 repository = "https://github.com/4stm4/ehatrom"
 homepage = "https://github.com/4stm4/ehatrom"
 documentation = "https://docs.rs/ehatrom"
-keywords = ["raspberry-pi", "eeprom", "hat", "i2c", "crc32"]
+keywords = ["raspberry-pi", "eeprom", "hat", "i2c", "crc"]
 categories = ["embedded", "hardware-support"]
 readme = "README.md"
 license = "MIT"

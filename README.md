@@ -7,12 +7,15 @@
 
 `ehatrom` is a Rust library for reading, writing, and generating EEPROM content for Raspberry Pi HAT (Hardware Attached on Top) via I2C. It supports correct serialization/deserialization of the structure, working with atoms (VendorInfo, GPIO Map, DTBlob, custom), reading/writing with 2-byte offset and page write, and convenient content output.
 
+The generated images are **byte-compatible with the official Raspberry Pi HAT ID EEPROM format** as produced/parsed by the reference `eepmake`/`eepdump` tools ([`raspberrypi/utils`, `eeptools`](https://github.com/raspberrypi/utils/tree/master/eeptools)): 12-byte header, 8-byte atom headers (`type:u16`, `count:u16`, `dlen:u32`, all little-endian, where `dlen = data + 2`), and a per-atom CRC-16 (reflected, polynomial `0x8005`) over each atom header and its data. See [tests/hat_golden.rs](tests/hat_golden.rs) for a byte-exact golden image.
+
 ## Features
 - Read and write Raspberry Pi HAT EEPROM via I2C (with page write and 2-byte offset support)
-- Serialization and parsing of EEPROM structure according to the official Raspberry Pi HAT specification
+- Serialization and parsing of EEPROM structure in the official Raspberry Pi HAT format (spec atom types, per-atom CRC-16)
+- Endianness-independent output (all fields written as little-endian regardless of host)
 - Convenient content output, including string fields
 - CLI example for reading/writing/dumping EEPROM
-- Support for custom atoms and CRC32 integrity check
+- Support for manufacturer custom atoms (spec type `0x0004`)
 - Large EEPROM support with configurable buffer size via `EHATROM_BUFFER_SIZE` environment variable
 - Page-based reading implementation (32 bytes per read) for better compatibility with real EEPROM chips
 
@@ -25,31 +28,31 @@
 - `Eeprom` — full EEPROM structure
 
 ### Why 28 pins in GpioMapAtom?
-28 pins correspond to GPIO0–GPIO27 of the standard 40-pin Raspberry Pi header. This is exactly the number of user GPIOs available on regular models. For extended boards (Compute Module), a second atom (GpioMapBank1) can be added.
+28 pins correspond to GPIO0–GPIO27 of the standard 40-pin Raspberry Pi header. This is exactly the number of user GPIOs available on regular models. For extended boards (Compute Module), a second atom (GPIO map bank1, spec type `0x0005`) can be added; on the wire a bank1 atom carries 18 pins (GPIO28–GPIO45).
 
 ## Usage Example
 
 ```rust
-use ehatrom::{Eeprom, VendorInfoAtom, GpioMapAtom};
+use ehatrom::{Eeprom, EepromHeader, VendorInfoAtom, GpioMapAtom};
 
-// Create VendorInfoAtom
+// Create VendorInfoAtom. The HAT vendor atom has no separate "vendor_id" field;
+// the vendor is identified by its string plus the 16-byte UUID.
 let vendor_info = VendorInfoAtom::new(
-    0x1234, // vendor_id
-    0x5678, // product_id
-    1,      // product_ver
-    "MyVendor", // vendor (any string length)
-    "MyHAT",    // product (any string length)
-    [0u8; 16],   // uuid
+    0x5678,     // product_id (pid)
+    1,          // product_ver (pver)
+    "MyVendor", // vendor string (stored in a 16-byte buffer)
+    "MyHAT",    // product string (stored in a 16-byte buffer)
+    [0u8; 16],  // uuid / serial
 );
 
-// Fill GPIO map: all unused (0), GPIO4 — input (0x01), GPIO17 — output (0x02)
+// Fill GPIO map. Per the spec func_sel encoding: 0x00 = input, 0x01 = output.
 let mut pins = [0u8; 28];
-pins[4] = 0x01;   // GPIO4 — input
-pins[17] = 0x02;  // GPIO17 — output
-let gpio_map = GpioMapAtom { flags: 0, pins };
+pins[4] = 0x00;   // GPIO4 — input
+pins[17] = 0x01;  // GPIO17 — output
+let gpio_map = GpioMapAtom { flags: 0, power: 0, pins };
 
 let mut eeprom = Eeprom {
-    header: Default::default(),
+    header: EepromHeader::new(),
     vendor_info,
     gpio_map_bank0: gpio_map,
     dt_blob: None,
@@ -58,34 +61,27 @@ let mut eeprom = Eeprom {
 };
 eeprom.update_header();
 
-// Serialization to bytes
+// Serialize a complete, spec-compliant HAT image. Each atom already carries its
+// own trailing CRC-16 — there is no separate whole-image checksum step.
 let bytes = eeprom.serialize();
 
-// Serialization with CRC32
-let bytes_with_crc = eeprom.serialize_with_crc();
+// Write to EEPROM via I2C (validates every per-atom CRC-16 first)
+// ehatrom::write_to_eeprom_i2c(&bytes, "/dev/i2c-1", 0x50)?;
 
-// Write to EEPROM via I2C
-// ehatrom::write_to_eeprom_i2c(&bytes_with_crc, "/dev/i2c-1", 0x50)?;
-
-// Read from EEPROM with CRC check
+// Read from EEPROM and verify
 // let mut buf = vec![0u8; 256];
 // ehatrom::read_from_eeprom_i2c(&mut buf, "/dev/i2c-1", 0x50, 0)?;
-// if Eeprom::verify_crc(&buf) {
-//     let eeprom = Eeprom::from_bytes(&buf[..buf.len()-4])?;
+// if Eeprom::verify(&buf) {
+//     let eeprom = Eeprom::from_bytes(&buf)?;
 //     println!("{:?}", eeprom);
 // } else {
 //     println!("CRC check failed!");
 // }
 
-// Add a custom atom (e.g., with settings or serial number)
-let custom_data = b"serial:1234567890".to_vec();
-eeprom.add_custom_atom(0x80, custom_data);
-
-// Add a custom atom with settings (e.g., API address)
-let api_url = b"api_url:https://api.example.com/v1".to_vec();
-eeprom.add_custom_atom(0x80, api_url);
-let api_key = b"api_key:SECRET123456".to_vec();
-eeprom.add_custom_atom(0x81, api_key);
+// Add manufacturer custom atoms. All custom atoms are emitted with the spec
+// type 0x0004; the first tuple element is an informational tag only.
+eeprom.add_custom_atom(0x00, b"serial:1234567890".to_vec());
+eeprom.add_custom_atom(0x00, b"api_url:https://api.example.com/v1".to_vec());
 ```
 
 ## Setting EEPROM Version
@@ -106,11 +102,12 @@ eeprom.set_version(3); // set version to 3
 ```
 
 ## pins field format
-Each byte of the `pins` array defines the function of the corresponding GPIO:
-- 0x00 — unused
-- 0x01 — input
-- 0x02 — output
-- ... (see HAT EEPROM specification)
+Each byte of the `pins` array encodes the `func_sel` of the corresponding GPIO, matching the HAT specification:
+- 0x00 — input
+- 0x01 — output
+- 0x04–0x0B — ALT0..ALT5
+- upper bits carry the pull setting (bits 5–6)
+- ... (see the HAT EEPROM specification for the full bit layout)
 
 ## Platform Support
 
@@ -122,7 +119,7 @@ Each byte of the `pins` array defines the function of the corresponding GPIO:
 
 ## Dependencies
 
-- [crc32fast](https://crates.io/crates/crc32fast) — for CRC32 calculation
+- CRC-16 (HAT format) and CRC-32 are implemented in-crate (`no_std`, no external crate)
 - [i2cdev](https://crates.io/crates/i2cdev) — for I2C access (Linux only)
 
 See also: [update_and_run.md](./update_and_run.md) for usage automation.
@@ -186,6 +183,7 @@ EHATROM_BUFFER_SIZE=1048576 sudo ehatrom detect  # 1MB buffer
 
 ## Links
 - [Official HAT EEPROM specification](https://github.com/raspberrypi/hats/blob/master/eeprom-format.md)
+- [Reference `eeptools` (`eepmake`/`eepdump`)](https://github.com/raspberrypi/utils/tree/master/eeptools) — the format `ehatrom` targets byte-for-byte
 
 ## License
 MIT
