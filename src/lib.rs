@@ -438,13 +438,13 @@ pub struct Eeprom {
     pub gpio_map_bank1: Option<GpioMapAtom>, // Optional
     /// Optional power-supply atom (`0x0006`): required back-power current in mA.
     pub power_supply: Option<u32>,
-    /// Manufacturer custom atoms. Each entry is `(tag, data)`; the `tag` is an
-    /// informational identifier only — on the wire every custom atom is emitted
-    /// with the spec type `0x0004`, and parsing reports `0x04` as the tag.
+    /// Manufacturer custom atoms, each a raw data blob. The HAT format has no
+    /// per-atom sub-type, so every entry is emitted with the spec custom type
+    /// `0x0004`; distinguish multiple custom atoms by their content.
     #[cfg(feature = "alloc")]
-    pub custom_atoms: Vec<(u8, Vec<u8>)>,
+    pub custom_atoms: Vec<Vec<u8>>,
     #[cfg(not(feature = "alloc"))]
-    pub custom_atoms: &'static [(u8, &'static [u8])], // Static data for no_std
+    pub custom_atoms: &'static [&'static [u8]], // Static data for no_std
 }
 
 /// Returns the used length of a fixed string buffer (up to the first NUL).
@@ -611,7 +611,8 @@ impl Eeprom {
                     }
                 }
                 other => {
-                    custom_atoms.push((other as u8, body.to_vec()));
+                    let _ = other;
+                    custom_atoms.push(body.to_vec());
                 }
             }
             offset = body_start + data_len + CRC_SIZE;
@@ -653,7 +654,7 @@ impl Eeprom {
         let mut dt_blob = None;
         let mut gpio_map_bank1 = None;
         let mut power_supply = None;
-        let custom_atoms: &'static [(u8, &'static [u8])] = &[];
+        let custom_atoms: &'static [&'static [u8]] = &[];
 
         for _ in 0..numatoms {
             if data.len() < offset + ATOM_HDR_SIZE {
@@ -804,13 +805,13 @@ impl Eeprom {
     }
 
     #[cfg(feature = "alloc")]
-    pub fn add_custom_atom(&mut self, atom_type: u8, data: Vec<u8>) {
-        self.custom_atoms.push((atom_type, data));
+    pub fn add_custom_atom(&mut self, data: Vec<u8>) {
+        self.custom_atoms.push(data);
         self.update_header();
     }
 
     #[cfg(not(feature = "alloc"))]
-    pub fn set_custom_atoms(&mut self, atoms: &'static [(u8, &'static [u8])]) {
+    pub fn set_custom_atoms(&mut self, atoms: &'static [&'static [u8]]) {
         self.custom_atoms = atoms;
         self.update_header();
     }
@@ -857,11 +858,11 @@ impl Eeprom {
         }
 
         #[cfg(feature = "alloc")]
-        for (_tag, data) in &self.custom_atoms {
+        for data in &self.custom_atoms {
             size += atom_overhead + data.len();
         }
         #[cfg(not(feature = "alloc"))]
-        for (_tag, data) in self.custom_atoms {
+        for data in self.custom_atoms {
             size += atom_overhead + data.len();
         }
 
@@ -946,11 +947,11 @@ impl Eeprom {
 
         // Custom atoms (always emitted with the spec custom type 0x0004).
         #[cfg(feature = "alloc")]
-        for (_tag, data) in &self.custom_atoms {
+        for data in &self.custom_atoms {
             write_atom(buf, &mut offset, &mut count, AtomType::Custom as u16, data)?;
         }
         #[cfg(not(feature = "alloc"))]
-        for (_tag, data) in self.custom_atoms {
+        for data in self.custom_atoms {
             write_atom(buf, &mut offset, &mut count, AtomType::Custom as u16, data)?;
         }
 
@@ -1184,15 +1185,15 @@ impl core::fmt::Display for Eeprom {
         #[cfg(feature = "alloc")]
         if !self.custom_atoms.is_empty() {
             writeln!(f, "\nCustom Atoms:")?;
-            for (typ, data) in &self.custom_atoms {
-                writeln!(f, "  type: 0x{typ:02X}, data: {data:02X?}")?
+            for (i, data) in self.custom_atoms.iter().enumerate() {
+                writeln!(f, "  [{i}] {} bytes: {data:02X?}", data.len())?
             }
         }
         #[cfg(not(feature = "alloc"))]
         if !self.custom_atoms.is_empty() {
             writeln!(f, "\nCustom Atoms:")?;
-            for (typ, data) in self.custom_atoms {
-                writeln!(f, "  type: 0x{typ:02X}, data: {data:02X?}")?
+            for (i, data) in self.custom_atoms.iter().enumerate() {
+                writeln!(f, "  [{i}] {} bytes: {data:02X?}", data.len())?
             }
         }
         Ok(())

@@ -93,7 +93,7 @@ fn main() {
     let mut eeprom = {
         // Для no_std нам нужны статические данные, это просто заглушка
         static DT_BLOB_DATA: [u8; 1] = [0];
-        static CUSTOM_ATOMS: [(u8, &[u8]); 0] = [];
+        static CUSTOM_ATOMS: [&[u8]; 0] = [];
         Eeprom {
             header: EepromHeader::new(),
             vendor_info: vendor_atom,

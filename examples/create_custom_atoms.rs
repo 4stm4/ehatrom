@@ -46,7 +46,7 @@ fn main() {
 
     // Custom atom 1: Configuration string
     let config_str = "MODE=SENSORS,INTERVAL=250,UNITS=METRIC".to_string();
-    custom_atoms.push((0x81, config_str.into_bytes())); // Using tuple format (type, data)
+    custom_atoms.push(config_str.into_bytes());
 
     // Custom atom 2: Sensor calibration data (example of binary data)
     let mut sensor_cal = Vec::new();
@@ -59,7 +59,7 @@ fn main() {
     // Pressure offset and gain
     sensor_cal.extend_from_slice(&(15.0f32.to_be_bytes()));
     sensor_cal.extend_from_slice(&(1.0f32.to_be_bytes()));
-    custom_atoms.push((0x82, sensor_cal)); // Using tuple format (type, data)
+    custom_atoms.push(sensor_cal);
 
     // Custom atom 3: Hardware version info as string
     let hw_info = format!(
@@ -68,14 +68,14 @@ fn main() {
         env!("CARGO_PKG_VERSION_MINOR"),
         env!("CARGO_PKG_VERSION_PATCH")
     );
-    custom_atoms.push((0x83, hw_info.into_bytes())); // Using tuple format (type, data)
+    custom_atoms.push(hw_info.into_bytes());
 
     // Custom atom 4: Binary data (e.g., lookup table)
     let mut lookup_table = Vec::new();
     for i in 0..32 {
         lookup_table.push((i * i) as u8); // Simple quadratic lookup table
     }
-    custom_atoms.push((0x84, lookup_table)); // Using tuple format (type, data)
+    custom_atoms.push(lookup_table);
 
     // Create EEPROM structure
     #[cfg(feature = "alloc")]
@@ -93,7 +93,7 @@ fn main() {
     // Для no_std режима создаем статические данные
     let mut eeprom = {
         // Для no_std нам нужны статические данные, это просто заглушка
-        static CUSTOM_ATOMS: [(u8, &[u8]); 0] = [];
+        static CUSTOM_ATOMS: [&[u8]; 0] = [];
         Eeprom {
             header: EepromHeader::new(),
             vendor_info: vendor_atom,
@@ -137,11 +137,11 @@ fn main() {
     println!("   • Standard HAT header");
     println!("   • Vendor info atom");
     println!("   • GPIO map atom");
-    println!("   • 4 custom atoms:");
-    println!("     - 0x81: Configuration string");
-    println!("     - 0x82: Sensor calibration data");
-    println!("     - 0x83: Hardware version info");
-    println!("     - 0x84: Lookup table (32 bytes)");
+    println!("   • 4 custom atoms (all spec type 0x0004):");
+    println!("     - [0] Configuration string");
+    println!("     - [1] Sensor calibration data");
+    println!("     - [2] Hardware version info");
+    println!("     - [3] Lookup table (32 bytes)");
 
     // Verify the created file
     if Eeprom::verify(&serialized) {

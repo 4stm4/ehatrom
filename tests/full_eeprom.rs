@@ -54,7 +54,7 @@ fn test_add_atoms() {
     eeprom.add_dt_blob(vec![1, 2, 3, 4]);
     assert!(eeprom.dt_blob.is_some());
 
-    eeprom.add_custom_atom(0x80, b"custom".to_vec());
+    eeprom.add_custom_atom(b"custom".to_vec());
     assert_eq!(eeprom.custom_atoms.len(), 1);
 }
 
@@ -77,7 +77,7 @@ fn test_serialization_roundtrip() {
     let mut original = base_eeprom();
     original.add_gpio_map_bank1(make_gpio());
     original.add_dt_blob(vec![1, 2, 3]);
-    original.add_custom_atom(0x80, b"custom".to_vec());
+    original.add_custom_atom(b"custom".to_vec());
     original.update_header();
 
     let bytes = original.serialize();
@@ -89,7 +89,7 @@ fn test_serialization_roundtrip() {
     assert!(parsed.gpio_map_bank1.is_some());
     assert_eq!(parsed.custom_atoms.len(), 1);
     assert_eq!(parsed.dt_blob.unwrap(), vec![1, 2, 3]);
-    assert_eq!(parsed.custom_atoms[0].1, b"custom");
+    assert_eq!(parsed.custom_atoms[0], b"custom");
     // Vendor round-trips through the vslen/pslen string fields.
     assert_eq!(parsed.vendor_info.product_id, 0x5678);
     assert_eq!(&parsed.vendor_info.vendor[..10], b"testvendor");

@@ -103,7 +103,7 @@ fn random_eeprom(rng: &mut Rng) -> Eeprom {
     let mut custom_atoms = Vec::new();
     for _ in 0..rng.range(4) {
         let n = rng.range(20) as usize;
-        custom_atoms.push((0u8, (0..n).map(|_| rng.byte()).collect::<Vec<u8>>()));
+        custom_atoms.push((0..n).map(|_| rng.byte()).collect::<Vec<u8>>());
     }
 
     let mut eeprom = Eeprom {

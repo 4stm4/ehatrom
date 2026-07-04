@@ -40,10 +40,10 @@ fn main() {
 
     // In no_std environment, custom_atoms would be a static slice
     #[cfg(not(feature = "alloc"))]
-    static CUSTOM_ATOMS: &[(u8, &[u8])] = &[(0x80, CUSTOM_DATA)];
+    static CUSTOM_ATOMS: &[&[u8]] = &[CUSTOM_DATA];
 
     #[cfg(feature = "alloc")]
-    let custom_atoms = vec![(0x80u8, CUSTOM_DATA.to_vec())];
+    let custom_atoms = vec![CUSTOM_DATA.to_vec()];
 
     let mut eeprom = Eeprom {
         header: EepromHeader::new(),

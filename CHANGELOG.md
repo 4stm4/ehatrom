@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - **BREAKING**: `GpioMapAtom` is now `flags:u8`, `power:u8`, `pins[28]` (was `flags:u16`, `pins[28]`).
 - **BREAKING**: Atom type ids corrected to the spec values — vendor `0x0001`, GPIO bank0 `0x0002`, DT blob `0x0003`, custom `0x0004`, GPIO bank1 `0x0005` (was `0x04`, which collided with custom data). Custom atoms are always emitted with type `0x0004`.
 - **BREAKING**: Pin `func_sel` encoding corrected — `0x00` = input, `0x01` = output (was `0x01`/`0x02`).
+- **BREAKING**: `custom_atoms` is now `Vec<Vec<u8>>` (was `Vec<(u8, Vec<u8>)>`) and `add_custom_atom` drops the tag argument. The HAT format has no per-custom-atom sub-type — every custom atom is type `0x0004` — so the old tag was never serialized; custom atoms now round-trip losslessly.
 - **BREAKING**: API changes — `serialize_with_crc`/`serialize_with_crc_to_slice`/`serialize_to_buffer` replaced by `serialize()` (alloc), `serialize_to_slice()` (no_std) and `serialize_into()` (both), which emit a complete valid image. `verify_crc` replaced by `verify()`, which checks every per-atom CRC-16.
 - **FIXED**: Serialization no longer casts `#[repr(C, packed)]` structs through raw pointers; all fields are written/read as explicit little-endian, so output is identical on big-endian hosts.
 - **ADDED**: `tests/hat_golden.rs` — a byte-exact golden image plus a CRC-16 reference check value (`crc16(b"123456789") == 0xBB3D`) that pins compatibility with the reference tools.
