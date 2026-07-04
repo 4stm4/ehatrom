@@ -78,6 +78,11 @@ pub mod utils;
 pub use gpio::{PinConfig, PinFunc, PinPull, UNUSED_PIN, decode_pin, encode_pin};
 use utils::crc16::crc16;
 
+#[cfg(feature = "alloc")]
+pub mod settings;
+#[cfg(feature = "alloc")]
+pub use settings::{SettingsError, parse_settings};
+
 #[cfg(all(feature = "linux", any(target_os = "linux", target_os = "android")))]
 use i2cdev::{core::I2CDevice, linux::LinuxI2CDevice};
 
