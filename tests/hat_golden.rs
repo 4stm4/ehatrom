@@ -87,6 +87,15 @@ fn every_atom_crc_is_valid() {
 }
 
 #[test]
+fn serialize_to_writer_matches_serialize() {
+    let eeprom = fixture();
+    let mut buf = Vec::new();
+    let n = eeprom.serialize_to_writer(&mut buf).unwrap();
+    assert_eq!(n, buf.len());
+    assert_eq!(buf, GOLDEN);
+}
+
+#[test]
 fn corrupting_any_atom_byte_fails_verify() {
     let mut bytes = fixture().serialize();
     // Flip a byte inside the gpio atom's data.

@@ -976,6 +976,83 @@ impl Eeprom {
         self.serialize_into(buffer)
     }
 
+    /// Streams the serialized image to a [`std::io::Write`], returning the byte
+    /// count written.
+    ///
+    /// Unlike [`serialize`](Self::serialize) this never buffers the whole image:
+    /// atom data (device-tree blobs, custom atoms) is written straight to `w`
+    /// with its CRC-16 computed incrementally.
+    #[cfg(feature = "std")]
+    pub fn serialize_to_writer<W: std::io::Write>(&self, w: &mut W) -> std::io::Result<usize> {
+        use utils::crc16::Crc16;
+
+        fn write_atom<W: std::io::Write>(
+            w: &mut W,
+            count: &mut u16,
+            atom_type: u16,
+            data: &[u8],
+        ) -> std::io::Result<()> {
+            let dlen = (data.len() + CRC_SIZE) as u32;
+            let mut hdr = [0u8; ATOM_HDR_SIZE];
+            hdr[0..2].copy_from_slice(&atom_type.to_le_bytes());
+            hdr[2..4].copy_from_slice(&count.to_le_bytes());
+            hdr[4..8].copy_from_slice(&dlen.to_le_bytes());
+            let mut crc = Crc16::new();
+            crc.update(&hdr);
+            crc.update(data);
+            w.write_all(&hdr)?;
+            w.write_all(data)?;
+            w.write_all(&crc.finalize().to_le_bytes())?;
+            *count += 1;
+            Ok(())
+        }
+
+        let total = self.calculate_serialized_size();
+        let mut header = [0u8; HEADER_SIZE];
+        header[0..4].copy_from_slice(&EEPROM_SIGNATURE);
+        header[4] = if self.header.version == 0 {
+            FORMAT_VERSION
+        } else {
+            self.header.version
+        };
+        header[5] = self.header.reserved;
+        header[6..8].copy_from_slice(&self.atom_count().to_le_bytes());
+        header[8..12].copy_from_slice(&(total as u32).to_le_bytes());
+        w.write_all(&header)?;
+
+        let mut count: u16 = 0;
+
+        let mut vbuf = [0u8; VENDOR_FIXED_SIZE + 32];
+        let vlen = self.vendor_info.encode(&mut vbuf);
+        write_atom(w, &mut count, AtomType::VendorInfo as u16, &vbuf[..vlen])?;
+
+        let mut gbuf = [0u8; 2 + GPIO_COUNT];
+        self.gpio_map_bank0.encode_bank0(&mut gbuf);
+        write_atom(w, &mut count, AtomType::GpioMapBank0 as u16, &gbuf)?;
+
+        if let Some(ref blob) = self.dt_blob {
+            write_atom(w, &mut count, AtomType::DtBlob as u16, blob)?;
+        }
+        if let Some(ref bank1) = self.gpio_map_bank1 {
+            let mut g1 = [0u8; 2 + GPIO_COUNT_BANK1];
+            bank1.encode_bank1(&mut g1);
+            write_atom(w, &mut count, AtomType::GpioMapBank1 as u16, &g1)?;
+        }
+        if let Some(current_ma) = self.power_supply {
+            write_atom(
+                w,
+                &mut count,
+                AtomType::PowerSupply as u16,
+                &current_ma.to_le_bytes(),
+            )?;
+        }
+        for data in &self.custom_atoms {
+            write_atom(w, &mut count, AtomType::Custom as u16, data)?;
+        }
+
+        Ok(total)
+    }
+
     pub fn set_version(&mut self, version: u8) {
         self.header.version = version;
     }
