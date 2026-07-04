@@ -26,3 +26,26 @@ default = ["alloc"]
 alloc = []
 std = ["alloc"]
 linux = ["i2cdev", "std"]
+
+# The examples write files and print, and use the allocating API; they require
+# `alloc` (and pull in std at link time). Declaring this lets
+# `cargo test --no-default-features` skip them and run the no_std test suite.
+[[example]]
+name = "create_simple"
+required-features = ["alloc"]
+
+[[example]]
+name = "create_test"
+required-features = ["alloc"]
+
+[[example]]
+name = "create_custom_atoms"
+required-features = ["alloc"]
+
+[[example]]
+name = "create_advanced"
+required-features = ["alloc"]
+
+[[example]]
+name = "bare_metal_example"
+required-features = ["alloc"]

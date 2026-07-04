@@ -816,6 +816,17 @@ impl Eeprom {
         self.update_header();
     }
 
+    /// The device-tree blob bytes, if present (uniform across alloc/no_std).
+    #[cfg(feature = "alloc")]
+    fn dt_blob_bytes(&self) -> Option<&[u8]> {
+        self.dt_blob.as_deref()
+    }
+    /// The device-tree blob bytes, if present (uniform across alloc/no_std).
+    #[cfg(not(feature = "alloc"))]
+    fn dt_blob_bytes(&self) -> Option<&[u8]> {
+        self.dt_blob
+    }
+
     /// Number of atoms this EEPROM will serialize to.
     pub fn atom_count(&self) -> u16 {
         let mut n: u16 = 2; // VendorInfo + GPIO bank0 are always present
@@ -847,7 +858,7 @@ impl Eeprom {
         size += atom_overhead + self.vendor_info.data_len();
         size += atom_overhead + (2 + GPIO_COUNT);
 
-        if let Some(ref blob) = self.dt_blob {
+        if let Some(blob) = self.dt_blob_bytes() {
             size += atom_overhead + blob.len();
         }
         if self.gpio_map_bank1.is_some() {
@@ -917,7 +928,7 @@ impl Eeprom {
         )?;
 
         // Device-tree blob.
-        if let Some(ref blob) = self.dt_blob {
+        if let Some(blob) = self.dt_blob_bytes() {
             write_atom(buf, &mut offset, &mut count, AtomType::DtBlob as u16, blob)?;
         }
 
@@ -1030,7 +1041,7 @@ impl Eeprom {
         self.gpio_map_bank0.encode_bank0(&mut gbuf);
         write_atom(w, &mut count, AtomType::GpioMapBank0 as u16, &gbuf)?;
 
-        if let Some(ref blob) = self.dt_blob {
+        if let Some(blob) = self.dt_blob_bytes() {
             write_atom(w, &mut count, AtomType::DtBlob as u16, blob)?;
         }
         if let Some(ref bank1) = self.gpio_map_bank1 {
@@ -1355,7 +1366,7 @@ impl core::fmt::Display for Eeprom {
         writeln!(f, "EEPROM Header:\n{}", self.header)?;
         writeln!(f, "\nVendor Info:\n{}", self.vendor_info)?;
         writeln!(f, "\nGPIO Map Bank0:\n{}", self.gpio_map_bank0)?;
-        if let Some(ref dt_blob) = self.dt_blob {
+        if let Some(dt_blob) = self.dt_blob_bytes() {
             writeln!(f, "\nDT Blob: {} bytes", dt_blob.len())?;
         }
         if let Some(ref bank1) = self.gpio_map_bank1 {

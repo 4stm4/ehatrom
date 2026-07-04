@@ -171,6 +171,7 @@ fn main() {
                 eprintln!("Usage: ehatrom show <input.bin>");
                 process::exit(1);
             }
+            #[cfg_attr(not(feature = "alloc"), allow(unused_variables))]
             let data = match std::fs::read(&args[2]) {
                 Ok(d) => d,
                 Err(e) => {
@@ -200,6 +201,7 @@ fn main() {
                 eprintln!("Usage: ehatrom dump <input.bin>");
                 process::exit(1);
             }
+            #[cfg_attr(not(feature = "alloc"), allow(unused_variables))]
             let data = match std::fs::read(&args[2]) {
                 Ok(d) => d,
                 Err(e) => {
@@ -265,6 +267,7 @@ fn main() {
                 eprintln!("Usage: ehatrom verify <input.bin>");
                 process::exit(1);
             }
+            #[cfg_attr(not(feature = "alloc"), allow(unused_variables))]
             let data = match std::fs::read(&args[2]) {
                 Ok(d) => d,
                 Err(e) => {
