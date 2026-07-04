@@ -73,7 +73,9 @@ impl core::fmt::Display for EhatromError {
 #[cfg(feature = "std")]
 impl std::error::Error for EhatromError {}
 
+pub mod gpio;
 pub mod utils;
+pub use gpio::{PinConfig, PinFunc, PinPull, UNUSED_PIN, decode_pin, encode_pin};
 use utils::crc16::crc16;
 
 #[cfg(all(feature = "linux", any(target_os = "linux", target_os = "android")))]

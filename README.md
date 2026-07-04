@@ -102,12 +102,27 @@ eeprom.set_version(3); // set version to 3
 ```
 
 ## pins field format
-Each byte of the `pins` array encodes the `func_sel` of the corresponding GPIO, matching the HAT specification:
-- 0x00 — input
-- 0x01 — output
-- 0x04–0x0B — ALT0..ALT5
-- upper bits carry the pull setting (bits 5–6)
-- ... (see the HAT EEPROM specification for the full bit layout)
+Each byte of the `pins` array encodes one GPIO, matching `eepmake`'s `setgpio`:
+
+| bits  | meaning                                              |
+|-------|------------------------------------------------------|
+| `2:0` | `func_sel` — input=0, output=1, ALT0..ALT5 = 4,5,6,7,3,2 |
+| `4:3` | reserved (0)                                         |
+| `6:5` | pull — 0=default, 1=up, 2=down, 3=none               |
+| `7`   | "board uses this pin" flag                           |
+
+Note that `0x00` means **the pin is not used by the board**, not "input": a used input pin with the default pull is `0x80`. Prefer the typed helpers over raw bytes:
+
+```rust
+use ehatrom::{encode_pin, decode_pin, PinFunc, PinPull, UNUSED_PIN};
+
+let mut pins = [UNUSED_PIN; 28];
+pins[17] = encode_pin(PinFunc::Output, PinPull::Default); // 0x81
+pins[4]  = encode_pin(PinFunc::Input,  PinPull::Up);      // 0xA0
+
+let cfg = decode_pin(pins[17]);
+assert_eq!(cfg.func, PinFunc::Output);
+```
 
 ## Platform Support
 

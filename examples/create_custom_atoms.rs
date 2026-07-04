@@ -28,15 +28,16 @@ fn main() {
     );
 
     // Create GPIO map for bank 0 - more complex pin assignments
-    // Per-pin func_sel encoding per the HAT spec: 0x00 = input, 0x01 = output.
-    let mut pins = [0u8; 28];
-    pins[4] = 0x00; // GPIO4 - Input
-    pins[17] = 0x01; // GPIO17 - Output
-    pins[18] = 0x01; // GPIO18 - Output
-    pins[22] = 0x00; // GPIO22 - Input
-    pins[23] = 0x00; // GPIO23 - Input
-    pins[24] = 0x01; // GPIO24 - Output
-    pins[25] = 0x01; // GPIO25 - Output
+    // Configure pins with the typed helper. Unlisted pins stay UNUSED_PIN (0x00);
+    // a configured pin always has the "board uses this pin" bit set.
+    let mut pins = [UNUSED_PIN; 28];
+    pins[4] = encode_pin(PinFunc::Input, PinPull::Up); // GPIO4 - input, pull-up
+    pins[17] = encode_pin(PinFunc::Output, PinPull::Default); // GPIO17 - output
+    pins[18] = encode_pin(PinFunc::Output, PinPull::Default); // GPIO18 - output
+    pins[22] = encode_pin(PinFunc::Input, PinPull::Down); // GPIO22 - input, pull-down
+    pins[23] = encode_pin(PinFunc::Input, PinPull::Down); // GPIO23 - input, pull-down
+    pins[24] = encode_pin(PinFunc::Output, PinPull::Default); // GPIO24 - output
+    pins[25] = encode_pin(PinFunc::Output, PinPull::Default); // GPIO25 - output
     let gpio_atom = GpioMapAtom {
         flags: 0x00,
         power: 0x00,
