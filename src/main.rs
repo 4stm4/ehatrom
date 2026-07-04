@@ -18,7 +18,7 @@ fn main() {
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        eprintln!("Usage: ehatrom <read|write|show|detect> [options]");
+        eprintln!("Usage: ehatrom <read|write|make|show|dump|verify|detect> [options]");
         eprintln!("Commands:");
         eprintln!(
             "  read [i2c-dev] <output.bin>             Read HAT EEPROM via I2C and save to file"
@@ -26,7 +26,12 @@ fn main() {
         eprintln!(
             "  write [i2c-dev] <input.bin>             Write HAT EEPROM from file to I2C device"
         );
-        eprintln!("  show <input.bin>                        Show parsed EEPROM info from file");
+        eprintln!(
+            "  make <settings.txt> <output.bin>        Build a HAT EEPROM image from settings.txt"
+        );
+        eprintln!("  show <input.bin>                        Show parsed EEPROM info (debug)");
+        eprintln!("  dump <input.bin>                        Show parsed EEPROM info (readable)");
+        eprintln!("  verify <input.bin>                      Check every per-atom CRC-16");
         eprintln!(
             "  detect [i2c-dev]                        Auto-detect HAT EEPROM on specific device"
         );
@@ -36,6 +41,9 @@ fn main() {
         eprintln!("  Default I2C device is /dev/i2c-0 (HAT standard)");
         eprintln!("  Default buffer size is 32KB, customize with EHATROM_BUFFER_SIZE env variable");
         eprintln!("Examples:");
+        eprintln!("  ehatrom make settings.txt hat.bin       # Build image from settings.txt");
+        eprintln!("  ehatrom dump hat.bin                    # Human-readable dump + CRC check");
+        eprintln!("  ehatrom verify hat.bin                  # Exit non-zero on CRC mismatch");
         eprintln!("  sudo ehatrom read hat_data.bin          # Read from /dev/i2c-0 to file");
         eprintln!("  sudo ehatrom write hat_data.bin         # Write from file to /dev/i2c-0");
         eprintln!("  sudo ehatrom read /dev/i2c-1 hat.bin    # Read from specific I2C device");
@@ -183,6 +191,102 @@ fn main() {
             #[cfg(not(feature = "alloc"))]
             {
                 eprintln!("Parse command requires 'alloc' feature");
+                process::exit(1);
+            }
+        }
+        "dump" => {
+            // ehatrom dump <input.bin>
+            if args.len() != 3 {
+                eprintln!("Usage: ehatrom dump <input.bin>");
+                process::exit(1);
+            }
+            let data = match std::fs::read(&args[2]) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("Failed to read input: {e}");
+                    process::exit(1);
+                }
+            };
+            #[cfg(feature = "alloc")]
+            match Eeprom::from_bytes(&data) {
+                Ok(eeprom) => {
+                    print!("{eeprom}");
+                    if Eeprom::verify(&data) {
+                        println!("\nCRC-16: all atoms valid");
+                    } else {
+                        println!("\nCRC-16: MISMATCH");
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Parse error: {e}");
+                    process::exit(1);
+                }
+            }
+            #[cfg(not(feature = "alloc"))]
+            {
+                eprintln!("Dump command requires 'alloc' feature");
+                process::exit(1);
+            }
+        }
+        "verify" => {
+            // ehatrom verify <input.bin>
+            if args.len() != 3 {
+                eprintln!("Usage: ehatrom verify <input.bin>");
+                process::exit(1);
+            }
+            let data = match std::fs::read(&args[2]) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("Failed to read input: {e}");
+                    process::exit(1);
+                }
+            };
+            if Eeprom::verify(&data) {
+                println!("OK: valid signature and all per-atom CRC-16 checks passed");
+            } else {
+                eprintln!("FAIL: invalid signature or a per-atom CRC-16 mismatch");
+                process::exit(1);
+            }
+        }
+        "make" => {
+            // ehatrom make <settings.txt> <output.bin>
+            if args.len() != 4 {
+                eprintln!("Usage: ehatrom make <settings.txt> <output.bin>");
+                process::exit(1);
+            }
+            #[cfg(feature = "alloc")]
+            {
+                let settings = match std::fs::read_to_string(&args[2]) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("Failed to read settings file: {e}");
+                        process::exit(1);
+                    }
+                };
+                match ehatrom::parse_settings(&settings) {
+                    Ok(eeprom) => {
+                        let bytes = eeprom.serialize();
+                        if let Err(e) = std::fs::write(&args[3], &bytes) {
+                            eprintln!("Failed to write output: {e}");
+                            process::exit(1);
+                        }
+                        println!(
+                            "Wrote {} ({} bytes, {} atoms) from {}",
+                            args[3],
+                            bytes.len(),
+                            eeprom.atom_count(),
+                            args[2]
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!("{e}");
+                        process::exit(1);
+                    }
+                }
+            }
+            #[cfg(not(feature = "alloc"))]
+            {
+                eprintln!("The 'make' command requires the 'alloc' feature");
                 process::exit(1);
             }
         }

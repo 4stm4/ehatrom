@@ -144,15 +144,24 @@ See also: [update_and_run.md](./update_and_run.md) for usage automation.
 A full-featured CLI is available starting from version 0.3.0:
 
 ```
-Usage: ehatrom <read|write|show|detect> [options]
+Usage: ehatrom <read|write|make|show|dump|verify|detect> [options]
 
 Commands:
   read [i2c-dev] <output.bin>             Read EEPROM via I2C and save to file
   write [i2c-dev] <input.bin>             Write EEPROM from file to I2C device
+  make <settings.txt> <output.bin>        Build a HAT EEPROM image from an eepmake-style settings file
   show <input.bin>                        Show parsed EEPROM info from file (debug format)
+  dump <input.bin>                        Human-readable dump plus a per-atom CRC-16 check
+  verify <input.bin>                      Validate every per-atom CRC-16 (exit non-zero on mismatch)
   detect [i2c-dev]                        Auto-detect HAT EEPROM on specific device (default: /dev/i2c-0)
   detect --all                            Scan all available I2C devices for HAT EEPROM
 ```
+
+The `make` command accepts the same settings directives as `eepmake` (see the
+[`settings`](https://docs.rs/ehatrom/latest/ehatrom/settings/) module docs) —
+`product_uuid`, `product_id`, `product_ver`, `vendor`, `product`,
+`current_supply`, the `gpio_*`/`back_power` flags and `setgpio`. Device-tree and
+custom-data file includes are not handled by the parser.
 
 Examples:
 
