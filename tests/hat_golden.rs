@@ -96,6 +96,29 @@ fn corrupting_any_atom_byte_fails_verify() {
 }
 
 #[test]
+fn validate_reports_the_failing_atom() {
+    // Corrupt the gpio bank0 atom (the second atom, index 1).
+    let mut bytes = fixture().serialize();
+    let idx = bytes.len() - 5;
+    bytes[idx] ^= 0xFF;
+    match Eeprom::validate(&bytes) {
+        Err(ehatrom::ValidationError::CrcMismatch { atom, .. }) => assert_eq!(atom, 1),
+        other => panic!("expected CrcMismatch on atom 1, got {other:?}"),
+    }
+
+    // A wrong signature is reported distinctly.
+    let mut bad_sig = fixture().serialize();
+    bad_sig[0] = 0;
+    assert_eq!(
+        Eeprom::validate(&bad_sig),
+        Err(ehatrom::ValidationError::BadSignature)
+    );
+
+    // The untouched golden image validates cleanly.
+    assert!(Eeprom::validate(GOLDEN).is_ok());
+}
+
+#[test]
 fn roundtrip_from_reference_image() {
     let parsed = Eeprom::from_bytes(GOLDEN).expect("parse golden image");
     assert_eq!(parsed.vendor_info.product_id, 0x5678);

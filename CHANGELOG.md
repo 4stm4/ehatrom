@@ -18,6 +18,8 @@ All notable changes to this project will be documented in this file.
 - **ADDED**: `tests/hat_golden.rs` — a byte-exact golden image plus a CRC-16 reference check value (`crc16(b"123456789") == 0xBB3D`) that pins compatibility with the reference tools.
 - **ADDED**: typed GPIO pin encoding (`PinFunc`, `PinPull`, `encode_pin`/`decode_pin`, `UNUSED_PIN`) matching `eepmake`'s `setgpio` bit layout, including the "board uses this pin" flag (bit 7).
 - **ADDED**: power-supply atom (`0x0006`) support via `Eeprom::power_supply` / `add_power_supply(current_ma)`, serialized and parsed as a little-endian `u32` (milliamps).
+- **ADDED**: `parse_settings()` — build an `Eeprom` from an `eepmake`-style `settings.txt`, and CLI subcommands `make`, `dump`, and `verify`.
+- **ADDED**: `Eeprom::validate()` returning a `ValidationError` that names the offending atom (bad signature, truncation, `dlen`, or CRC-16 mismatch); `verify()` is now a boolean wrapper over it.
 
 ## [0.3.3] — 2025-11-22
 - **IMPROVEMENT**: All main structures and fields are now public for easier integration in external projects.

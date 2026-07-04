@@ -73,6 +73,56 @@ impl core::fmt::Display for EhatromError {
 #[cfg(feature = "std")]
 impl std::error::Error for EhatromError {}
 
+/// Detailed reason why [`Eeprom::validate`] rejected a serialized image.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValidationError {
+    /// Fewer than 12 bytes — not even a full header.
+    TooShort,
+    /// The 4-byte signature is not `"R-Pi"`.
+    BadSignature,
+    /// The atom header runs past the end of the data.
+    TruncatedAtomHeader { atom: usize },
+    /// The atom's `dlen` is smaller than the 2-byte CRC it must include.
+    BadDlen { atom: usize },
+    /// The atom's data or CRC runs past the end of the data.
+    TruncatedAtom { atom: usize },
+    /// The atom's stored CRC-16 does not match the recomputed value.
+    CrcMismatch {
+        atom: usize,
+        expected: u16,
+        found: u16,
+    },
+}
+
+impl core::fmt::Display for ValidationError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ValidationError::TooShort => write!(f, "data too short for an EEPROM header"),
+            ValidationError::BadSignature => write!(f, "invalid EEPROM signature (expected R-Pi)"),
+            ValidationError::TruncatedAtomHeader { atom } => {
+                write!(f, "atom {atom}: truncated atom header")
+            }
+            ValidationError::BadDlen { atom } => {
+                write!(f, "atom {atom}: dlen smaller than the 2-byte CRC")
+            }
+            ValidationError::TruncatedAtom { atom } => {
+                write!(f, "atom {atom}: data or CRC runs past end of image")
+            }
+            ValidationError::CrcMismatch {
+                atom,
+                expected,
+                found,
+            } => write!(
+                f,
+                "atom {atom}: CRC-16 mismatch (expected 0x{expected:04X}, found 0x{found:04X})"
+            ),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for ValidationError {}
+
 pub mod gpio;
 pub mod utils;
 pub use gpio::{PinConfig, PinFunc, PinPull, UNUSED_PIN, decode_pin, encode_pin};
@@ -664,16 +714,29 @@ impl Eeprom {
     /// Verifies the signature and every per-atom CRC-16 of a serialized image.
     ///
     /// Returns `true` only when the header signature is valid and each atom's
-    /// stored CRC matches the CRC-16 recomputed over its header and data.
+    /// stored CRC matches the CRC-16 recomputed over its header and data. For a
+    /// detailed reason on failure, use [`Eeprom::validate`].
     pub fn verify(data: &[u8]) -> bool {
-        if data.len() < HEADER_SIZE || data[0..4] != EEPROM_SIGNATURE {
-            return false;
+        Self::validate(data).is_ok()
+    }
+
+    /// Validates a serialized image, returning the specific problem on failure.
+    ///
+    /// Checks the signature, that every atom fits within `data`, and that each
+    /// atom's stored CRC-16 matches. The [`ValidationError`] identifies the
+    /// offending atom by its 0-based index.
+    pub fn validate(data: &[u8]) -> Result<(), ValidationError> {
+        if data.len() < HEADER_SIZE {
+            return Err(ValidationError::TooShort);
+        }
+        if data[0..4] != EEPROM_SIGNATURE {
+            return Err(ValidationError::BadSignature);
         }
         let numatoms = u16::from_le_bytes([data[6], data[7]]);
         let mut offset = HEADER_SIZE;
-        for _ in 0..numatoms {
+        for atom in 0..numatoms as usize {
             if data.len() < offset + ATOM_HDR_SIZE {
-                return false;
+                return Err(ValidationError::TruncatedAtomHeader { atom });
             }
             let dlen = u32::from_le_bytes([
                 data[offset + 4],
@@ -682,21 +745,25 @@ impl Eeprom {
                 data[offset + 7],
             ]) as usize;
             if dlen < CRC_SIZE {
-                return false;
+                return Err(ValidationError::BadDlen { atom });
             }
             let data_len = dlen - CRC_SIZE;
             let crc_off = offset + ATOM_HDR_SIZE + data_len;
             if data.len() < crc_off + CRC_SIZE {
-                return false;
+                return Err(ValidationError::TruncatedAtom { atom });
             }
             let expected = crc16(&data[offset..crc_off]);
-            let stored = u16::from_le_bytes([data[crc_off], data[crc_off + 1]]);
-            if expected != stored {
-                return false;
+            let found = u16::from_le_bytes([data[crc_off], data[crc_off + 1]]);
+            if expected != found {
+                return Err(ValidationError::CrcMismatch {
+                    atom,
+                    expected,
+                    found,
+                });
             }
             offset = crc_off + CRC_SIZE;
         }
-        true
+        Ok(())
     }
 
     /// Checks if EEPROM contains valid data (by signature and version)

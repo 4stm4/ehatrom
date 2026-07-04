@@ -211,10 +211,9 @@ fn main() {
             match Eeprom::from_bytes(&data) {
                 Ok(eeprom) => {
                     print!("{eeprom}");
-                    if Eeprom::verify(&data) {
-                        println!("\nCRC-16: all atoms valid");
-                    } else {
-                        println!("\nCRC-16: MISMATCH");
+                    match Eeprom::validate(&data) {
+                        Ok(()) => println!("\nCRC-16: all atoms valid"),
+                        Err(e) => println!("\nCRC-16: {e}"),
                     }
                 }
                 Err(e) => {
@@ -241,11 +240,14 @@ fn main() {
                     process::exit(1);
                 }
             };
-            if Eeprom::verify(&data) {
-                println!("OK: valid signature and all per-atom CRC-16 checks passed");
-            } else {
-                eprintln!("FAIL: invalid signature or a per-atom CRC-16 mismatch");
-                process::exit(1);
+            match Eeprom::validate(&data) {
+                Ok(()) => {
+                    println!("OK: valid signature and all per-atom CRC-16 checks passed");
+                }
+                Err(e) => {
+                    eprintln!("FAIL: {e}");
+                    process::exit(1);
+                }
             }
         }
         "make" => {
