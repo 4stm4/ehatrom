@@ -1101,6 +1101,111 @@ impl From<u16> for AtomType {
     }
 }
 
+/// A single atom borrowed from a serialized EEPROM image.
+///
+/// Yielded by [`atoms`]; `data` points into the original slice, so walking an
+/// image with the iterator performs no heap allocation and works in `no_std`.
+#[derive(Debug, Clone, Copy)]
+pub struct AtomRef<'a> {
+    /// Raw atom type field.
+    pub atom_type: u16,
+    /// Atom index as stored in the image.
+    pub count: u16,
+    /// The atom payload (without the 8-byte header or trailing CRC).
+    pub data: &'a [u8],
+    stored_crc: u16,
+    computed_crc: u16,
+}
+
+impl AtomRef<'_> {
+    /// The atom type as a [`AtomType`].
+    pub fn kind(&self) -> AtomType {
+        AtomType::from(self.atom_type)
+    }
+
+    /// The CRC-16 stored in the image for this atom.
+    pub fn stored_crc(&self) -> u16 {
+        self.stored_crc
+    }
+
+    /// Whether the stored CRC-16 matches the value recomputed over this atom.
+    pub fn crc_valid(&self) -> bool {
+        self.stored_crc == self.computed_crc
+    }
+}
+
+/// Iterator over the atoms of a serialized EEPROM image (see [`atoms`]).
+#[derive(Debug, Clone)]
+pub struct AtomIter<'a> {
+    data: &'a [u8],
+    offset: usize,
+    remaining: u16,
+}
+
+/// Walks the atoms of a serialized EEPROM image without allocating.
+///
+/// Iteration yields [`AtomRef`]s borrowing from `data`. It stops early (fusing
+/// to `None`) if the header signature is missing or an atom is truncated; use
+/// [`Eeprom::validate`] to distinguish a clean end from a malformed image.
+pub fn atoms(data: &[u8]) -> AtomIter<'_> {
+    let remaining = if data.len() >= HEADER_SIZE && data[0..4] == EEPROM_SIGNATURE {
+        u16::from_le_bytes([data[6], data[7]])
+    } else {
+        0
+    };
+    AtomIter {
+        data,
+        offset: HEADER_SIZE,
+        remaining,
+    }
+}
+
+impl<'a> Iterator for AtomIter<'a> {
+    type Item = AtomRef<'a>;
+
+    fn next(&mut self) -> Option<AtomRef<'a>> {
+        if self.remaining == 0 {
+            return None;
+        }
+        let data = self.data;
+        let offset = self.offset;
+        if data.len() < offset + ATOM_HDR_SIZE {
+            self.remaining = 0;
+            return None;
+        }
+        let atom_type = u16::from_le_bytes([data[offset], data[offset + 1]]);
+        let count = u16::from_le_bytes([data[offset + 2], data[offset + 3]]);
+        let dlen = u32::from_le_bytes([
+            data[offset + 4],
+            data[offset + 5],
+            data[offset + 6],
+            data[offset + 7],
+        ]) as usize;
+        if dlen < CRC_SIZE {
+            self.remaining = 0;
+            return None;
+        }
+        let data_len = dlen - CRC_SIZE;
+        let crc_off = offset + ATOM_HDR_SIZE + data_len;
+        if data.len() < crc_off + CRC_SIZE {
+            self.remaining = 0;
+            return None;
+        }
+        let payload = &data[offset + ATOM_HDR_SIZE..crc_off];
+        let stored_crc = u16::from_le_bytes([data[crc_off], data[crc_off + 1]]);
+        let computed_crc = crc16(&data[offset..crc_off]);
+        self.offset = crc_off + CRC_SIZE;
+        self.remaining -= 1;
+        Some(AtomRef {
+            atom_type,
+            count,
+            data: payload,
+            stored_crc,
+            computed_crc,
+        })
+    }
+}
+
 /// Writes a prepared EEPROM image to the target I2C device.
 ///
 /// The function performs basic structural validation (signature, header fields,

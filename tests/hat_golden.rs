@@ -128,6 +128,29 @@ fn validate_reports_the_failing_atom() {
 }
 
 #[test]
+fn atom_iterator_walks_the_image() {
+    let collected: Vec<_> = ehatrom::atoms(GOLDEN).collect();
+    assert_eq!(collected.len(), 2);
+
+    assert_eq!(collected[0].kind(), AtomType::VendorInfo);
+    assert_eq!(collected[0].count, 0);
+    assert_eq!(collected[0].data.len(), 43); // 22 + "testvendor"(10) + "testproduct"(11)
+    assert!(collected[0].crc_valid());
+
+    assert_eq!(collected[1].kind(), AtomType::GpioMapBank0);
+    assert_eq!(collected[1].count, 1);
+    assert_eq!(collected[1].data.len(), 30);
+    assert!(collected[1].crc_valid());
+
+    // A corrupted atom is still yielded, but flagged as invalid.
+    let mut bytes = GOLDEN.to_vec();
+    let idx = bytes.len() - 5;
+    bytes[idx] ^= 0xFF;
+    let last = ehatrom::atoms(&bytes).last().unwrap();
+    assert!(!last.crc_valid());
+}
+
+#[test]
 fn roundtrip_from_reference_image() {
     let parsed = Eeprom::from_bytes(GOLDEN).expect("parse golden image");
     assert_eq!(parsed.vendor_info.product_id, 0x5678);
