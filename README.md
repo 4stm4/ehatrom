@@ -205,6 +205,24 @@ EHATROM_BUFFER_SIZE=1048576 sudo ehatrom detect  # 1MB buffer
 - All errors and usage info are printed to stderr.
 - Requires root for I2C access on Linux.
 
+## Acceptance testing against `eepmake`/`eepdump`
+
+The unit and golden tests pin the format against the specification. To verify
+against the *actual* reference tools, run the acceptance harness on a machine
+that has [`eeptools`](https://github.com/raspberrypi/utils/tree/master/eeptools)
+installed:
+
+```sh
+make acceptance
+# or, with tools outside PATH:
+EEPMAKE=/path/to/eepmake EEPDUMP=/path/to/eepdump tests/acceptance/eepmake_compat.sh
+```
+
+It builds an image with `ehatrom make`, confirms `eepdump` can parse it, and
+compares it byte-for-byte with `eepmake`'s output from the same settings file.
+This step is intentionally **not** part of CI, since it depends on external
+binaries.
+
 ## Links
 - [Official HAT EEPROM specification](https://github.com/raspberrypi/hats/blob/master/eeprom-format.md)
 - [Reference `eeptools` (`eepmake`/`eepdump`)](https://github.com/raspberrypi/utils/tree/master/eeptools) — the format `ehatrom` targets byte-for-byte

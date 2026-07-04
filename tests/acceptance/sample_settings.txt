@@ -1,0 +1,22 @@
+# Sample HAT settings for the eepmake/eepdump acceptance check.
+#
+# Kept deliberately minimal so both ehatrom and eepmake emit exactly two atoms
+# (vendor-info + GPIO bank0), which lets the images be compared byte-for-byte.
+# A fixed, non-zero product_uuid is used so eepmake does not fall back to a
+# random UUID (which would make the comparison non-deterministic).
+
+product_uuid 12345678-9abc-def0-1234-56789abcdef0
+product_id 0x0001
+product_ver 0x0002
+vendor "ACME"
+product "Sensor HAT"
+
+# GPIO bank0. All four flag directives are set so eepmake treats bank0 as
+# present (and required fields as satisfied); ehatrom always emits bank0.
+gpio_drive 0
+gpio_slew 0
+gpio_hysteresis 0
+back_power 0
+
+setgpio 4 INPUT UP
+setgpio 17 OUTPUT DEFAULT

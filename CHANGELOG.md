@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file.
 - **ADDED**: power-supply atom (`0x0006`) support via `Eeprom::power_supply` / `add_power_supply(current_ma)`, serialized and parsed as a little-endian `u32` (milliamps).
 - **ADDED**: `parse_settings()` — build an `Eeprom` from an `eepmake`-style `settings.txt`, and CLI subcommands `make`, `dump`, and `verify`.
 - **ADDED**: `atoms()` — a zero-copy, `no_std` iterator over an image's atoms yielding `AtomRef`s (type, count, borrowed data, per-atom CRC validity).
+- **ADDED**: an acceptance harness (`tests/acceptance/eepmake_compat.sh`, `make acceptance`) that checks ehatrom's output byte-for-byte against the reference `eepmake` and confirms `eepdump` parses it. Not part of CI (needs the external tools); run locally.
 - **ADDED**: `Eeprom::serialize_to_writer()` (std) streams the image to any `std::io::Write` without buffering the whole thing, plus an incremental `utils::crc16::Crc16` (new/update/finalize).
 - **ADDED**: `Eeprom::validate()` returning a `ValidationError` that names the offending atom (bad signature, truncation, `dlen`, or CRC-16 mismatch); `verify()` is now a boolean wrapper over it.
 
