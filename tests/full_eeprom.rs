@@ -21,6 +21,7 @@ fn base_eeprom() -> Eeprom {
         gpio_map_bank0: make_gpio(),
         dt_blob: None,
         gpio_map_bank1: None,
+        power_supply: None,
         custom_atoms: Vec::new(),
     }
 }
@@ -55,6 +56,20 @@ fn test_add_atoms() {
 
     eeprom.add_custom_atom(0x80, b"custom".to_vec());
     assert_eq!(eeprom.custom_atoms.len(), 1);
+}
+
+#[test]
+fn test_power_supply_roundtrip() {
+    let mut eeprom = base_eeprom();
+    let before = eeprom.header.numatoms;
+    eeprom.add_power_supply(2500); // 2500 mA
+    assert_eq!(eeprom.header.numatoms, before + 1);
+
+    let bytes = eeprom.serialize();
+    assert!(Eeprom::verify(&bytes));
+
+    let parsed = Eeprom::from_bytes(&bytes).unwrap();
+    assert_eq!(parsed.power_supply, Some(2500));
 }
 
 #[test]

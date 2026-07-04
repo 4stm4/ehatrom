@@ -84,6 +84,7 @@ fn main() {
         gpio_map_bank0: gpio_atom,
         dt_blob: Some(dt_blob_data), // dt_blob is Option<Vec<u8>>
         gpio_map_bank1: None,        // Not used in this example
+        power_supply: None,
         custom_atoms: Vec::new(),
     };
 
@@ -99,6 +100,7 @@ fn main() {
             gpio_map_bank0: gpio_atom,
             dt_blob: Some(&DT_BLOB_DATA), // dt_blob is Option<&[u8]> в no_std
             gpio_map_bank1: None,
+            power_supply: None,
             custom_atoms: &CUSTOM_ATOMS,
         }
     };

@@ -31,6 +31,7 @@ fn test_empty_eeprom_is_invalid() {
         },
         dt_blob: None,
         gpio_map_bank1: None,
+        power_supply: None,
         custom_atoms: vec![],
     };
     assert!(!eeprom.is_valid());

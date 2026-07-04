@@ -51,6 +51,7 @@ fn main() {
         gpio_map_bank0: gpio_map,
         dt_blob: None,
         gpio_map_bank1: None,
+        power_supply: None,
         #[cfg(feature = "alloc")]
         custom_atoms,
         #[cfg(not(feature = "alloc"))]

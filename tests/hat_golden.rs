@@ -56,6 +56,7 @@ fn fixture() -> Eeprom {
         gpio_map_bank0: gpio,
         dt_blob: None,
         gpio_map_bank1: None,
+        power_supply: None,
         custom_atoms: Vec::new(),
     };
     eeprom.update_header();

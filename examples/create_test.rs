@@ -37,6 +37,7 @@ fn main() {
         gpio_map_bank0: gpio_atom,
         dt_blob: None,
         gpio_map_bank1: None,
+        power_supply: None,
         custom_atoms: Vec::new(),
     };
 
@@ -47,6 +48,7 @@ fn main() {
         gpio_map_bank0: gpio_atom,
         dt_blob: None,
         gpio_map_bank1: None,
+        power_supply: None,
         custom_atoms: &[],
     };
 

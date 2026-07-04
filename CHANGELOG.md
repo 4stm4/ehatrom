@@ -16,6 +16,8 @@ All notable changes to this project will be documented in this file.
 - **BREAKING**: API changes — `serialize_with_crc`/`serialize_with_crc_to_slice`/`serialize_to_buffer` replaced by `serialize()` (alloc), `serialize_to_slice()` (no_std) and `serialize_into()` (both), which emit a complete valid image. `verify_crc` replaced by `verify()`, which checks every per-atom CRC-16.
 - **FIXED**: Serialization no longer casts `#[repr(C, packed)]` structs through raw pointers; all fields are written/read as explicit little-endian, so output is identical on big-endian hosts.
 - **ADDED**: `tests/hat_golden.rs` — a byte-exact golden image plus a CRC-16 reference check value (`crc16(b"123456789") == 0xBB3D`) that pins compatibility with the reference tools.
+- **ADDED**: typed GPIO pin encoding (`PinFunc`, `PinPull`, `encode_pin`/`decode_pin`, `UNUSED_PIN`) matching `eepmake`'s `setgpio` bit layout, including the "board uses this pin" flag (bit 7).
+- **ADDED**: power-supply atom (`0x0006`) support via `Eeprom::power_supply` / `add_power_supply(current_ma)`, serialized and parsed as a little-endian `u32` (milliamps).
 
 ## [0.3.3] — 2025-11-22
 - **IMPROVEMENT**: All main structures and fields are now public for easier integration in external projects.

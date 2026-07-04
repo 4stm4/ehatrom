@@ -157,6 +157,7 @@ pub enum AtomType {
     DtBlob = 0x0003,
     Custom = 0x0004,
     GpioMapBank1 = 0x0005,
+    PowerSupply = 0x0006,
     Unknown = 0xFFFF,
 }
 
@@ -380,6 +381,8 @@ pub struct Eeprom {
     #[cfg(not(feature = "alloc"))]
     pub dt_blob: Option<&'static [u8]>, // Static data for no_std
     pub gpio_map_bank1: Option<GpioMapAtom>, // Optional
+    /// Optional power-supply atom (`0x0006`): required back-power current in mA.
+    pub power_supply: Option<u32>,
     /// Manufacturer custom atoms. Each entry is `(tag, data)`; the `tag` is an
     /// informational identifier only — on the wire every custom atom is emitted
     /// with the spec type `0x0004`, and parsing reports `0x04` as the tag.
@@ -508,6 +511,7 @@ impl Eeprom {
         let mut gpio_map_bank0 = None;
         let mut dt_blob = None;
         let mut gpio_map_bank1 = None;
+        let mut power_supply = None;
         let mut custom_atoms = Vec::new();
 
         for _ in 0..numatoms {
@@ -545,6 +549,12 @@ impl Eeprom {
                 x if x == AtomType::GpioMapBank1 as u16 => {
                     gpio_map_bank1 = GpioMapAtom::decode(body);
                 }
+                x if x == AtomType::PowerSupply as u16 => {
+                    if body.len() >= 4 {
+                        power_supply =
+                            Some(u32::from_le_bytes([body[0], body[1], body[2], body[3]]));
+                    }
+                }
                 other => {
                     custom_atoms.push((other as u8, body.to_vec()));
                 }
@@ -557,6 +567,7 @@ impl Eeprom {
             gpio_map_bank0: gpio_map_bank0.ok_or("GpioMapBank0 atom not found")?,
             dt_blob,
             gpio_map_bank1,
+            power_supply,
             custom_atoms,
         })
     }
@@ -586,6 +597,7 @@ impl Eeprom {
         let mut gpio_map_bank0 = None;
         let mut dt_blob = None;
         let mut gpio_map_bank1 = None;
+        let mut power_supply = None;
         let custom_atoms: &'static [(u8, &'static [u8])] = &[];
 
         for _ in 0..numatoms {
@@ -623,6 +635,12 @@ impl Eeprom {
                 x if x == AtomType::GpioMapBank1 as u16 => {
                     gpio_map_bank1 = GpioMapAtom::decode(body);
                 }
+                x if x == AtomType::PowerSupply as u16 => {
+                    if body.len() >= 4 {
+                        power_supply =
+                            Some(u32::from_le_bytes([body[0], body[1], body[2], body[3]]));
+                    }
+                }
                 _ => {}
             }
             offset = body_start + data_len + CRC_SIZE;
@@ -633,6 +651,7 @@ impl Eeprom {
             gpio_map_bank0: gpio_map_bank0.ok_or("GpioMapBank0 atom not found")?,
             dt_blob,
             gpio_map_bank1,
+            power_supply,
             custom_atoms,
         })
     }
@@ -706,6 +725,12 @@ impl Eeprom {
         self.update_header();
     }
 
+    /// Sets the power-supply atom (`0x0006`): required back-power current in mA.
+    pub fn add_power_supply(&mut self, current_ma: u32) {
+        self.power_supply = Some(current_ma);
+        self.update_header();
+    }
+
     #[cfg(feature = "alloc")]
     pub fn add_custom_atom(&mut self, atom_type: u8, data: Vec<u8>) {
         self.custom_atoms.push((atom_type, data));
@@ -725,6 +750,9 @@ impl Eeprom {
             n += 1;
         }
         if self.gpio_map_bank1.is_some() {
+            n += 1;
+        }
+        if self.power_supply.is_some() {
             n += 1;
         }
         n += self.custom_atoms.len() as u16;
@@ -751,6 +779,9 @@ impl Eeprom {
         }
         if self.gpio_map_bank1.is_some() {
             size += atom_overhead + (2 + GPIO_COUNT_BANK1);
+        }
+        if self.power_supply.is_some() {
+            size += atom_overhead + 4;
         }
 
         #[cfg(feature = "alloc")]
@@ -830,6 +861,17 @@ impl Eeprom {
             )?;
         }
 
+        // Power supply.
+        if let Some(current_ma) = self.power_supply {
+            write_atom(
+                buf,
+                &mut offset,
+                &mut count,
+                AtomType::PowerSupply as u16,
+                &current_ma.to_le_bytes(),
+            )?;
+        }
+
         // Custom atoms (always emitted with the spec custom type 0x0004).
         #[cfg(feature = "alloc")]
         for (_tag, data) in &self.custom_atoms {
@@ -903,6 +945,7 @@ impl From<u16> for AtomType {
             0x0003 => AtomType::DtBlob,
             0x0004 => AtomType::Custom,
             0x0005 => AtomType::GpioMapBank1,
+            0x0006 => AtomType::PowerSupply,
             _ => AtomType::Unknown,
         }
     }
@@ -1062,6 +1105,9 @@ impl core::fmt::Display for Eeprom {
         }
         if let Some(ref bank1) = self.gpio_map_bank1 {
             writeln!(f, "\nGPIO Map Bank1:\n{bank1}")?
+        }
+        if let Some(current_ma) = self.power_supply {
+            writeln!(f, "\nPower Supply: {current_ma} mA")?
         }
         #[cfg(feature = "alloc")]
         if !self.custom_atoms.is_empty() {
