@@ -208,17 +208,49 @@ fn main() {
                 }
             };
             #[cfg(feature = "alloc")]
-            match Eeprom::from_bytes(&data) {
-                Ok(eeprom) => {
-                    print!("{eeprom}");
-                    match Eeprom::validate(&data) {
-                        Ok(()) => println!("\nCRC-16: all atoms valid"),
-                        Err(e) => println!("\nCRC-16: {e}"),
-                    }
+            {
+                use ehatrom::AtomType;
+
+                // Per-atom overview, walked zero-copy straight from the bytes.
+                let numatoms = if data.len() >= 8 {
+                    u16::from_le_bytes([data[6], data[7]])
+                } else {
+                    0
+                };
+                println!("Atoms: {numatoms}");
+                for (i, atom) in ehatrom::atoms(&data).enumerate() {
+                    let name = match atom.kind() {
+                        AtomType::VendorInfo => "vendor-info",
+                        AtomType::GpioMapBank0 => "gpio-bank0",
+                        AtomType::DtBlob => "device-tree",
+                        AtomType::Custom => "custom",
+                        AtomType::GpioMapBank1 => "gpio-bank1",
+                        AtomType::PowerSupply => "power-supply",
+                        AtomType::Unknown => "unknown",
+                    };
+                    let crc = if atom.crc_valid() { "OK" } else { "BAD" };
+                    println!(
+                        "  [{i}] type=0x{:04X} ({name}) count={} data={}B crc={crc} (0x{:04X})",
+                        atom.atom_type,
+                        atom.count,
+                        atom.data.len(),
+                        atom.stored_crc(),
+                    );
                 }
-                Err(e) => {
-                    eprintln!("Parse error: {e}");
-                    process::exit(1);
+                println!();
+
+                match Eeprom::from_bytes(&data) {
+                    Ok(eeprom) => {
+                        print!("{eeprom}");
+                        match Eeprom::validate(&data) {
+                            Ok(()) => println!("\nCRC-16: all atoms valid"),
+                            Err(e) => println!("\nCRC-16: {e}"),
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Parse error: {e}");
+                        process::exit(1);
+                    }
                 }
             }
             #[cfg(not(feature = "alloc"))]
