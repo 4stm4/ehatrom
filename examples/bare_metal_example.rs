@@ -19,7 +19,6 @@ fn main() {
 
     // Create EEPROM structure with static data
     let vendor_info = VendorInfoAtom::new(
-        0x0001, // vendor_id
         0x0002, // product_id
         0x0001, // product_ver
         "Acme Corp",
@@ -31,7 +30,8 @@ fn main() {
     );
 
     let gpio_map = GpioMapAtom {
-        flags: 0x0001,
+        flags: 0x00,
+        power: 0x00,
         pins: [0; 28], // All pins disabled
     };
 
@@ -74,9 +74,8 @@ fn main() {
     }
 
     // Demonstrate no-allocation serialization (available in both std and no_std)
-    let mut offset = 0;
-    match eeprom.serialize_to_buffer(&mut buffer, &mut offset) {
-        Ok(()) => {
+    match eeprom.serialize_into(&mut buffer) {
+        Ok(offset) => {
             println!("Successfully serialized {offset} bytes to buffer");
             println!("First 16 bytes: {:02X?}", &buffer[..16.min(offset)]);
         }

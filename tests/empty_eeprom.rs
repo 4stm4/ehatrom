@@ -18,15 +18,15 @@ fn test_empty_eeprom_is_invalid() {
     let eeprom = Eeprom {
         header: empty,
         vendor_info: VendorInfoAtom {
-            vendor_id: 0,
+            uuid: [0; 16],
             product_id: 0,
             product_ver: 0,
             vendor: [0; 16],
             product: [0; 16],
-            uuid: [0; 16],
         },
         gpio_map_bank0: GpioMapAtom {
             flags: 0,
+            power: 0,
             pins: [0; 28],
         },
         dt_blob: None,

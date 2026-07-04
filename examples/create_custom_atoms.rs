@@ -17,7 +17,6 @@ fn main() {
 
     // Create vendor info atom
     let vendor_atom = VendorInfoAtom::new(
-        0x4143, // vendor_id "AC" (example)
         0x0001, // product_id
         2,      // product_ver
         "ACME Custom HATs",
@@ -29,16 +28,18 @@ fn main() {
     );
 
     // Create GPIO map for bank 0 - more complex pin assignments
+    // Per-pin func_sel encoding per the HAT spec: 0x00 = input, 0x01 = output.
     let mut pins = [0u8; 28];
-    pins[4] = 0x01; // GPIO4 - Input
-    pins[17] = 0x02; // GPIO17 - Output
-    pins[18] = 0x02; // GPIO18 - Output
-    pins[22] = 0x01; // GPIO22 - Input
-    pins[23] = 0x01; // GPIO23 - Input
-    pins[24] = 0x02; // GPIO24 - Output
-    pins[25] = 0x02; // GPIO25 - Output
+    pins[4] = 0x00; // GPIO4 - Input
+    pins[17] = 0x01; // GPIO17 - Output
+    pins[18] = 0x01; // GPIO18 - Output
+    pins[22] = 0x00; // GPIO22 - Input
+    pins[23] = 0x00; // GPIO23 - Input
+    pins[24] = 0x01; // GPIO24 - Output
+    pins[25] = 0x01; // GPIO25 - Output
     let gpio_atom = GpioMapAtom {
-        flags: 0x0000,
+        flags: 0x00,
+        power: 0x00,
         pins,
     };
 
@@ -104,16 +105,16 @@ fn main() {
     // Update header with correct counts and length
     eeprom.update_header();
 
-    // Serialize with CRC
+    // Serialize a complete, spec-compliant HAT image (per-atom CRC-16 embedded)
     #[cfg(feature = "alloc")]
-    let serialized = eeprom.serialize_with_crc();
+    let serialized = eeprom.serialize();
 
     #[cfg(not(feature = "alloc"))]
     // Создаем буфер и вектор для копирования данных
     let serialized = {
         let mut buffer = [0u8; 1024]; // Буфер достаточного размера
         let size = eeprom
-            .serialize_with_crc_to_slice(&mut buffer)
+            .serialize_to_slice(&mut buffer)
             .expect("Failed to serialize EEPROM");
         // Копируем данные в новый вектор
         buffer[..size].to_vec()
@@ -140,10 +141,10 @@ fn main() {
     println!("     - 0x84: Lookup table (32 bytes)");
 
     // Verify the created file
-    if Eeprom::verify_crc(&serialized) {
-        println!("✅ CRC32 verification passed");
+    if Eeprom::verify(&serialized) {
+        println!("✅ CRC-16 verification passed");
     } else {
-        println!("❌ CRC32 verification failed");
+        println!("❌ CRC-16 verification failed");
     }
 
     println!("💡 This demonstrates how to embed custom application-specific data in HAT EEPROM");

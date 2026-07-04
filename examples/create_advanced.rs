@@ -15,7 +15,6 @@ fn main() {
 
     // Create a vendor info atom with detailed information
     let vendor_atom = VendorInfoAtom::new(
-        0x414C, // vendor_id (example: "AL" for AleksejZaharčenko)
         0x2024, // product_id (year)
         1,      // product_ver
         "4STM4 Ocultum",
@@ -39,7 +38,8 @@ fn main() {
     // Other pins remain as inputs (value 0)
 
     let gpio_atom = GpioMapAtom {
-        flags: 0x0001, // Set some flags
+        flags: 0x00,
+        power: 0x00,
         pins: gpio_pins,
     };
 
@@ -106,16 +106,16 @@ fn main() {
     // Update header with correct counts and length
     eeprom.update_header();
 
-    // Serialize with CRC
+    // Serialize a complete, spec-compliant HAT image (per-atom CRC-16 embedded)
     #[cfg(feature = "alloc")]
-    let serialized = eeprom.serialize_with_crc();
+    let serialized = eeprom.serialize();
 
     #[cfg(not(feature = "alloc"))]
     // Создаем буфер и вектор для копирования данных
     let serialized = {
         let mut buffer = [0u8; 4096]; // Больший буфер для DT blob
         let size = eeprom
-            .serialize_with_crc_to_slice(&mut buffer)
+            .serialize_to_slice(&mut buffer)
             .expect("Failed to serialize EEPROM");
         // Копируем данные в новый вектор
         buffer[..size].to_vec()
@@ -132,31 +132,16 @@ fn main() {
     println!("✅ Created {} ({} bytes)", filename, serialized.len());
     println!("📊 EEPROM structure:");
     println!("   • Header: 12 bytes");
-    println!(
-        "   • Vendor Info: {} bytes",
-        std::mem::size_of::<VendorInfoAtom>() + "4STM4 Ocultum".len() + "Advanced HAT Demo".len()
-    );
-    println!(
-        "   • GPIO Map Bank 0: {} bytes",
-        std::mem::size_of::<GpioMapAtom>()
-    );
-    println!(
-        "   • Device Tree Blob: {} bytes",
-        serialized.len()
-            - 12
-            - std::mem::size_of::<VendorInfoAtom>()
-            - "4STM4 Ocultum".len()
-            - "Advanced HAT Demo".len()
-            - std::mem::size_of::<GpioMapAtom>()
-            - 4
-    );
-    println!("   • CRC32: 4 bytes");
+    println!("   • Vendor Info atom (uuid, pid, pver, vendor/product strings)");
+    println!("   • GPIO Map Bank 0 atom (30-byte data)");
+    println!("   • Device Tree Blob atom");
+    println!("   • Each atom carries its own trailing CRC-16");
 
     // Verify the created file
-    if Eeprom::verify_crc(&serialized) {
-        println!("✅ CRC32 verification passed");
+    if Eeprom::verify(&serialized) {
+        println!("✅ CRC-16 verification passed");
     } else {
-        println!("❌ CRC32 verification failed");
+        println!("❌ CRC-16 verification failed");
     }
 
     println!("🎯 Use './target/release/ehatrom show {filename}' to analyze the created EEPROM");

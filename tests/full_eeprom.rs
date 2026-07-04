@@ -3,12 +3,13 @@
 use ehatrom::*;
 
 fn make_vendor() -> VendorInfoAtom {
-    VendorInfoAtom::new(0x1234, 0x5678, 1, "testvendor", "testproduct", [1; 16])
+    VendorInfoAtom::new(0x5678, 1, "testvendor", "testproduct", [1; 16])
 }
 
 fn make_gpio() -> GpioMapAtom {
     GpioMapAtom {
-        flags: 0xAA55,
+        flags: 0x05,
+        power: 0x00,
         pins: [1; 28],
     }
 }
@@ -64,23 +65,30 @@ fn test_serialization_roundtrip() {
     original.add_custom_atom(0x80, b"custom".to_vec());
     original.update_header();
 
-    let bytes = original.serialize_with_crc();
-    assert!(Eeprom::verify_crc(&bytes));
+    let bytes = original.serialize();
+    // Every atom carries a valid per-atom CRC-16.
+    assert!(Eeprom::verify(&bytes));
 
-    let parsed = Eeprom::from_bytes(&bytes[..bytes.len() - 4]).unwrap();
+    let parsed = Eeprom::from_bytes(&bytes).unwrap();
     assert!(parsed.dt_blob.is_some());
     assert!(parsed.gpio_map_bank1.is_some());
     assert_eq!(parsed.custom_atoms.len(), 1);
+    assert_eq!(parsed.dt_blob.unwrap(), vec![1, 2, 3]);
+    assert_eq!(parsed.custom_atoms[0].1, b"custom");
+    // Vendor round-trips through the vslen/pslen string fields.
+    assert_eq!(parsed.vendor_info.product_id, 0x5678);
+    assert_eq!(&parsed.vendor_info.vendor[..10], b"testvendor");
 }
 
 #[test]
 fn test_crc_verification() {
     let eeprom = base_eeprom();
-    let mut bytes = eeprom.serialize_with_crc();
-    assert!(Eeprom::verify_crc(&bytes));
+    let mut bytes = eeprom.serialize();
+    assert!(Eeprom::verify(&bytes));
 
-    bytes[10] ^= 0xFF;
-    assert!(!Eeprom::verify_crc(&bytes));
+    // Corrupt a byte inside the first atom's data → its CRC-16 no longer matches.
+    bytes[20] ^= 0xFF;
+    assert!(!Eeprom::verify(&bytes));
 }
 
 #[test]
@@ -89,5 +97,9 @@ fn test_invalid_deserialization() {
 
     let mut invalid = base_eeprom();
     invalid.header.signature = [0; 4];
-    assert!(Eeprom::from_bytes(&invalid.serialize()).is_err());
+    // serialize() always emits a valid signature, so tamper with the bytes.
+    let mut bytes = base_eeprom().serialize();
+    bytes[0] = 0;
+    assert!(Eeprom::from_bytes(&bytes).is_err());
+    let _ = invalid;
 }
