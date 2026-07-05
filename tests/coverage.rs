@@ -450,3 +450,32 @@ fn settings_errors_are_line_numbered() {
     assert_eq!(parse_settings("setgpio 4 BOGUS UP\n").unwrap_err().line, 1); // bad func
     assert_eq!(parse_settings("current_supply abc\n").unwrap_err().line, 1);
 }
+
+// ---- CustomAtom<N> ----------------------------------------------------------
+
+#[test]
+fn custom_atom_debug_and_display() {
+    let c: CustomAtom<3> = CustomAtom {
+        atom_type: 0x42,
+        data: [1, 2, 3],
+    };
+    assert_eq!(
+        format!("{c:?}"),
+        "CustomAtom { atom_type: 0x42, data: [1, 2, 3] }"
+    );
+    assert_eq!(format!("{c}"), "atom_type: 0x42\ndata: [01, 02, 03]");
+
+    // Copy semantics: the copy formats identically.
+    let d = c;
+    assert_eq!(format!("{d:?}"), format!("{c:?}"));
+}
+
+#[test]
+fn custom_atom_zero_length() {
+    let c: CustomAtom<0> = CustomAtom {
+        atom_type: 0xFF,
+        data: [],
+    };
+    assert_eq!(format!("{c:?}"), "CustomAtom { atom_type: 0xFF, data: [] }");
+    assert_eq!(format!("{c}"), "atom_type: 0xFF\ndata: []");
+}
